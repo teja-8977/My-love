@@ -11,6 +11,13 @@ export function ChatBox() {
   const set = useGame((s) => s.set);
   const [text, setText] = useState('');
   const [now, setNow] = useState(() => Date.now());
+  const { meId } = useTour();
+  // unread = messages from other people since the chat was last opened
+  const [seenAt, setSeenAt] = useState(() => Date.now());
+  useEffect(() => {
+    if (open) setSeenAt(Date.now());
+  }, [open, messages.length]);
+  const unread = open ? 0 : messages.filter((m) => m.id !== meId && m.ts > seenAt).length;
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -44,6 +51,7 @@ export function ChatBox() {
       <div ref={listRef} className={`mb-2 space-y-1 overflow-y-auto ${open ? 'max-h-60 rounded-2xl glass-strong p-3' : 'max-h-40'}`}>
         {visible.map((m) => (
           <div key={m.mid} className={`text-sm transition-opacity ${open ? '' : 'rounded-xl bg-black/35 px-2.5 py-1 backdrop-blur'}`} style={{ opacity: open ? 1 : Math.max(0, Math.min(1, (CHAT_TTL + 4000 - (now - m.ts)) / 3000)) }}>
+            {open && <span className="mr-1.5 text-[10px] tabular-nums text-cream/40">{new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
             <span className="font-semibold text-blush">{m.name}: </span>
             <span className="text-cream/90">{m.text}</span>
           </div>
@@ -78,7 +86,12 @@ export function ChatBox() {
         </form>
       ) : (
         <button onClick={() => set({ chatOpen: true })} className="flex items-center gap-2 rounded-full glass-strong px-4 py-2 text-sm text-cream/80 hover:text-cream">
-          <MessageCircleHeart className="h-4 w-4 text-blush" />
+          <span className="relative">
+            <MessageCircleHeart className="h-4 w-4 text-blush" />
+            {unread > 0 && (
+              <span className="absolute -right-2.5 -top-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose px-1 text-[10px] font-bold text-white">{unread > 9 ? '9+' : unread}</span>
+            )}
+          </span>
           <span className="[@media(hover:none)]:hidden">
             Press <span className="kbd">Enter</span> to chat
           </span>

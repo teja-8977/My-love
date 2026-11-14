@@ -271,7 +271,10 @@ export default function LobbyPage() {
                   )}
 
                   <div>
-                    <p className="mb-2 text-[10px] uppercase tracking-[0.25em] text-blush/80">Participants</p>
+                    <p className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-[0.25em] text-blush/80">
+                      <span>Participants</span>
+                      <span className="rounded-full bg-white/10 px-2 py-0.5 tracking-normal text-cream">{accepted.length} in the room · {[...online].length} online</span>
+                    </p>
                     <ol className="space-y-1.5">
                       {accepted.map((m, i) => {
                         const ready = online.has(m.user_id) || m.user_id === user?.id;

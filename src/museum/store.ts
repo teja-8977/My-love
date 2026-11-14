@@ -9,7 +9,8 @@ export type Overlay =
   | { type: 'music' }
   | { type: 'exit' }
   | { type: 'help' }
-  | { type: 'people' };
+  | { type: 'people' }
+  | { type: 'letter' };
 
 export interface PlayerInfo {
   id: string;

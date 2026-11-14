@@ -21,6 +21,8 @@ export interface EntrancePerson {
   /** small line under the name, e.g. "Host · Ready" */
   tag?: string;
   dim?: boolean;
+  /** speech bubble shown above the head (welcome dialogue) */
+  bubble?: ReactNode;
 }
 
 interface Props {
@@ -338,7 +340,12 @@ function Person({ p, position, rotation, greet }: { p: EntrancePerson; position:
   return (
     <group position={position} rotation={[0, rotation, 0]}>
       <Avatar config={p.avatar} state={anim} />
-      {p.name && (
+      {p.bubble && (
+        <WorldHtml position={[0, 2.25 * p.avatar.height, 0]} zIndex={30} interactive clampToScreen>
+          {p.bubble}
+        </WorldHtml>
+      )}
+      {p.name && !p.bubble && (
         <WorldHtml position={[0, 2.0 * p.avatar.height, 0]}>
           <div className={`flex flex-col items-center whitespace-nowrap ${p.dim ? 'opacity-50' : ''}`}>
             <span className="nametag text-[12px]">{p.name}</span>

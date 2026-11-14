@@ -80,6 +80,15 @@ export function standUp() {
   useGame.getState().set({ seated: null });
 }
 
+/** Quick travel (the "Go to" menu): jump to a spot, facing a direction. */
+export function teleportTo(x: number, z: number, yaw: number) {
+  localPlayer.seat = null;
+  localPlayer.pos.set(x, 0, z);
+  localPlayer.yaw = yaw;
+  localPlayer.camYaw = yaw + Math.PI;
+  useGame.getState().set({ seated: null, dancing: false });
+}
+
 export function respawn() {
   localPlayer.seat = null;
   localPlayer.pos.set(SPAWN.x, 0, SPAWN.z);
@@ -102,6 +111,8 @@ function promptFor(i: Interactable): { text: string; key: string } {
       return { key: 'E', text: 'Celebrate! 🎉' };
     case 'exit':
       return { key: 'E', text: 'Exit the museum' };
+    case 'letter':
+      return { key: 'E', text: 'Open the birthday letter 💌' };
   }
 }
 

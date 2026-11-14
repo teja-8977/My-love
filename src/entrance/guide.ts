@@ -23,9 +23,17 @@ export const GUIDE_AVATAR: AvatarConfig = {
 };
 
 /** The welcoming couple at the entrance (before any real participants exist). */
-export const WELCOME_COUPLE: { id: string; avatar: AvatarConfig }[] = [
-  { id: 'him', avatar: { ...DEFAULT_MALE, top: 'blazer', topColor: '#1c1c22', accentColor: '#fbf6ee', accessories: ['watch', 'bowtie'] } },
-  { id: 'her', avatar: { ...DEFAULT_FEMALE, top: 'dress', topColor: '#c9425f', hair: 'wavy', accessories: ['necklace', 'earrings', 'flower'] } },
+export const WELCOME_COUPLE: { id: 'teja' | 'pranati'; name: string; avatar: AvatarConfig }[] = [
+  {
+    id: 'teja',
+    name: 'Teja',
+    avatar: { ...DEFAULT_MALE, skin: '#b97f56', hair: 'short', hairColor: '#1b1210', facialHair: 'beard', top: 'shirt', topColor: '#2f3b52', accentColor: '#f4efe6', bottom: 'jeans', bottomColor: '#3d4a63', shoes: 'sneakers', shoeColor: '#f4efe6', height: 1.06, accessories: ['watch'] },
+  },
+  {
+    id: 'pranati',
+    name: 'Pranati',
+    avatar: { ...DEFAULT_FEMALE, skin: '#d49d74', hair: 'long', hairColor: '#1b1210', eyes: 'almond', top: 'dress', topColor: '#c9425f', accentColor: '#f2d27a', shoes: 'heels', shoeColor: '#8c2f3c', height: 0.95, accessories: ['necklace', 'earrings', 'flower'] },
+  },
 ];
 
 export const GUIDE_STEPS = [

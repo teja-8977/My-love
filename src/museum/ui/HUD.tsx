@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { CircleHelp, DoorOpen, Film, Users, Wifi, WifiOff } from 'lucide-react';
+import { ArrowRight, CircleHelp, DoorOpen, Film, Map as MapIcon, Users, Wifi, WifiOff } from 'lucide-react';
 import { useGame } from '../store';
+import { teleportTo } from '../player/LocalPlayer';
 import { ROOM_BY_ID } from '../layout';
 import { useTour } from '../context';
 import { DANCES } from '../../avatar/poses';
@@ -10,6 +11,7 @@ import { CinemaPanel } from './CinemaPanel';
 import { MusicPanel } from './MusicPanel';
 import { ExitDialog, HelpPanel, PeoplePanel, type TourActions } from './Panels';
 import { TouchControls } from './TouchControls';
+import { BirthdayLetter } from './BirthdayLetter';
 
 function RoomTitle() {
   const room = useGame((s) => s.room);
@@ -26,6 +28,52 @@ function RoomTitle() {
     <div key={shown} className="fade-in-up pointer-events-none absolute left-1/2 top-[18%] -translate-x-1/2 text-center">
       <p className="text-xs uppercase tracking-[0.4em] text-champagne/90 drop-shadow">{r.subtitle}</p>
       <p className="font-serif text-4xl text-cream drop-shadow-[0_2px_20px_rgba(0,0,0,0.8)] sm:text-5xl">{r.name}</p>
+    </div>
+  );
+}
+
+/** Directional quick-travel between the museum's areas. */
+const DESTINATIONS: { id: keyof typeof ROOM_BY_ID; x: number; z: number; yaw: number }[] = [
+  { id: 'portico', x: 0, z: 24.2, yaw: Math.PI },
+  { id: 'entrance', x: 0, z: 15, yaw: Math.PI },
+  { id: 'welcome', x: 0, z: 4.5, yaw: Math.PI },
+  { id: 'gallery', x: 0, z: -15.5, yaw: Math.PI },
+  { id: 'cinema', x: -25, z: -4, yaw: Math.PI },
+  { id: 'forever', x: -25, z: 6, yaw: 0 },
+  { id: 'celebration', x: 25, z: -4, yaw: Math.PI },
+  { id: 'final', x: 25, z: 6, yaw: 0 },
+];
+
+function GoTo() {
+  const [open, setOpen] = useState(false);
+  const room = useGame((s) => s.room);
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-1.5 rounded-full glass-strong px-3 py-2 text-sm hover:bg-white/10" aria-label="Go to a room">
+        <MapIcon className="h-4 w-4 text-blush" /> <span className="hidden sm:inline">Go to</span>
+      </button>
+      {open && (
+        <div className="glass-strong fade-in-up absolute right-0 top-11 z-40 w-60 rounded-2xl p-2">
+          {DESTINATIONS.map((d) => {
+            const r = ROOM_BY_ID[d.id];
+            const here = room === d.id;
+            return (
+              <button
+                key={d.id}
+                onClick={() => {
+                  teleportTo(d.x, d.z, d.yaw);
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm hover:bg-white/10 ${here ? 'text-blush' : 'text-cream'}`}
+              >
+                <ArrowRight className="h-4 w-4 shrink-0 text-gold" />
+                <span className="min-w-0 flex-1 truncate">{r.name}</span>
+                {here && <span className="text-[10px] uppercase tracking-wider">here</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -60,6 +108,7 @@ export function HUD({ actions, onTouchAction }: { actions: TourActions; onTouchA
               <Film className="h-4 w-4 text-blush" /> Cinema
             </button>
           )}
+          <GoTo />
           <button onClick={() => setOverlay({ type: 'people' })} className="flex items-center gap-1.5 rounded-full glass-strong px-3 py-2 text-sm hover:bg-white/10">
             <Users className="h-4 w-4 text-blush" /> {players.length}
           </button>
@@ -85,9 +134,12 @@ export function HUD({ actions, onTouchAction }: { actions: TourActions; onTouchA
 
       {/* interaction prompt */}
       {prompt && !overlay && (
-        <div className="fade-in-up absolute bottom-28 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full glass-strong px-4 py-2 text-sm">
+        <button
+          onClick={() => onTouchAction('E')}
+          className="fade-in-up pointer-events-auto absolute bottom-28 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full glass-strong px-4 py-2 text-sm hover:bg-white/10"
+        >
           <span className="kbd">{prompt.key}</span> {prompt.text}
-        </div>
+        </button>
       )}
 
       {!overlay && (
@@ -108,6 +160,15 @@ export function HUD({ actions, onTouchAction }: { actions: TourActions; onTouchA
           {DANCES[danceStyle].emoji} {DANCES[danceStyle].name} · <span className="kbd">1</span>–<span className="kbd">4</span> change · <span className="kbd">F</span> stop
         </div>
       )}
+      {/* DANCE / STOP DANCING (desktop; phones have the 💃 button) */}
+      {!overlay && (
+        <button
+          onClick={() => onTouchAction('F')}
+          className={`pointer-events-auto absolute bottom-28 right-4 hidden items-center gap-1.5 rounded-full px-4 py-2 text-sm [@media(hover:hover)]:flex ${dancing ? 'bg-rose text-white' : 'glass-strong hover:bg-white/10'}`}
+        >
+          {dancing ? 'Stop dancing' : '💃 Dance'}
+        </button>
+      )}
 
       {!overlay && (
         <div className="absolute bottom-4 right-4 hidden gap-2 text-xs text-cream/50 [@media(hover:hover)]:flex">
@@ -124,6 +185,7 @@ export function HUD({ actions, onTouchAction }: { actions: TourActions; onTouchA
       {overlay?.type === 'exit' && <ExitDialog actions={actions} />}
       {overlay?.type === 'help' && <HelpPanel />}
       {overlay?.type === 'people' && <PeoplePanel actions={actions} />}
+      {overlay?.type === 'letter' && <BirthdayLetter />}
     </div>
   );
 }

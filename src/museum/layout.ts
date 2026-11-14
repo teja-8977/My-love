@@ -108,7 +108,7 @@ export const ROOMS: RoomDef[] = [
   room({ id: 'celebration', name: 'Celebration Hall', subtitle: 'Room V', x0: 19, x1: 31, z0: -21, z1: 1, height: 7, floor: 'marble-dark', palette: PLUM, dark: true,
     sides: { w: doors(-17), s: doors(25) } }),
   corridor('c7', 'z', 23.2, 26.8, 1, 3),
-  room({ id: 'final', name: 'Our Final Memory', subtitle: 'Room VI', x0: 19, x1: 31, z0: 3, z1: 21, height: 6.2, floor: 'parquet', palette: SAGE, sconces: true,
+  room({ id: 'final', name: 'Happy Birthday, Pranati', subtitle: 'Room VI', x0: 19, x1: 31, z0: 3, z1: 21, height: 6.2, floor: 'parquet', palette: SAGE, sconces: true,
     sides: { n: doors(25), w: doors(17) } }),
   corridor('c8', 'x', 9, 19, 15.2, 18.8),
 ];
@@ -297,6 +297,10 @@ export const PARTY_POPPER = { x: CEL.x0 + 1.3, z: CEL.z0 + 1.4 };
 const FIN = ROOM_BY_ID.final;
 export const EXIT_DOOR = { x: FIN.x1, z: 9 };
 export const FINAL_WALL = { x: (FIN.x0 + FIN.x1) / 2, z: FIN.z1 };
+/** the birthday letter on its pedestal, centre of the final room */
+export const LETTER_SPOT = { x: (FIN.x0 + FIN.x1) / 2, z: 15.4 };
+/** birthday cake table */
+export const CAKE_SPOT = { x: FIN.x0 + 2.2, z: 17.8 };
 
 const ROT = ROOM_BY_ID.welcome;
 export const ROTUNDA = { x: 0, z: (ROT.z0 + ROT.z1) / 2, columnRadius: 7.2, domeRadius: 8.6, columnHeight: 6.4 };
@@ -317,7 +321,8 @@ export type Interactable =
   | { kind: 'cinema'; id: string; x: number; z: number; r: number }
   | { kind: 'music'; id: string; x: number; z: number; r: number }
   | { kind: 'party'; id: string; x: number; z: number; r: number }
-  | { kind: 'exit'; id: string; x: number; z: number; r: number };
+  | { kind: 'exit'; id: string; x: number; z: number; r: number }
+  | { kind: 'letter'; id: string; x: number; z: number; r: number };
 
 export const PARTY_WORLD = { x: PARTY_POPPER.x + 1.4, z: PARTY_POPPER.z + 1.4 };
 
@@ -331,6 +336,7 @@ export const INTERACTABLES: Interactable[] = [
   { kind: 'music', id: 'music', x: MUSIC_CONSOLE.x, z: MUSIC_CONSOLE.z + 1.4, r: 1.8 },
   { kind: 'party', id: 'party', x: PARTY_WORLD.x, z: PARTY_WORLD.z, r: 1.6 },
   { kind: 'exit', id: 'exit', x: EXIT_DOOR.x - 1.2, z: EXIT_DOOR.z, r: 1.8 },
+  { kind: 'letter', id: 'letter', x: LETTER_SPOT.x, z: LETTER_SPOT.z - 1.2, r: 1.9 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -350,6 +356,8 @@ const propBoxes: Box[] = [
   box(MUSIC_CONSOLE.x, MUSIC_CONSOLE.z, 1.3, 0.5),
   box(PARTY_POPPER.x, PARTY_POPPER.z, 0.4, 0.4),
   box(ROOM_BY_ID.forever.x0 + 0.7, 12, 0.7, 2.4), // heart arch
+  box(LETTER_SPOT.x, LETTER_SPOT.z, 0.5, 0.5), // letter pedestal
+  box(CAKE_SPOT.x, CAKE_SPOT.z, 0.6, 0.6), // cake table
   box(FIN.x0 + 1.5, FIN.z1 - 0.8, 0.4, 0.4), // heart pedestals
   box(FIN.x1 - 1.5, FIN.z1 - 0.8, 0.4, 0.4),
 ];

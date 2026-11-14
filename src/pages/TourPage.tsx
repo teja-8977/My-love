@@ -129,7 +129,7 @@ export default function TourPage() {
       } catch {
         /* ignore */
       }
-      nav('/dashboard');
+      nav('/');
     },
     endTour: async () => {
       if (!engines || !museum) return;

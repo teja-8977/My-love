@@ -7,7 +7,9 @@ import { createMuseum, getInvite, getInvitePublic, listMyMuseums, parseInviteInp
 import { Button, Field, Input, errMsg, toast } from '../components/ui';
 import { AuthPanel } from '../components/AuthPanel';
 import { QrScanner } from '../components/QrScanner';
-import { GUIDE_AVATAR, GUIDE_STEPS, WELCOME_COUPLE } from '../entrance/guide';
+import { WELCOME_COUPLE } from '../entrance/guide';
+import { WELCOME_DIALOGUE, type Speaker } from '../story';
+import { Volume2, VolumeX } from 'lucide-react';
 import type { EntranceMode } from '../entrance/EntranceScene';
 
 const EntranceScene = lazy(() => import('../entrance/EntranceScene'));
@@ -24,17 +26,38 @@ function useTypewriter(text: string, speed = 22) {
   return { shown: text.slice(0, n), done: n >= text.length, finish: () => setN(text.length) };
 }
 
-function GuideBubble({ step, onNext, onSkip }: { step: number; onNext: () => void; onSkip: () => void }) {
-  const { shown, done, finish } = useTypewriter(GUIDE_STEPS[step]);
-  const last = step === GUIDE_STEPS.length - 1;
+/** Optional voice narration with the browser's built-in speech (no files, no services). */
+function speak(text: string, who: Speaker) {
+  try {
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    synth.cancel();
+    const u = new SpeechSynthesisUtterance(text.replace(/[❤️]/g, ''));
+    const voices = synth.getVoices().filter((v) => /^en/i.test(v.lang));
+    const female = voices.find((v) => /female|zira|samantha|susan|heera|veena|google uk english female|aria|jenny/i.test(v.name));
+    const male = voices.find((v) => /male|david|mark|ravi|rishi|daniel|guy|google uk english male/i.test(v.name) && !/female/i.test(v.name));
+    u.voice = (who === 'pranati' ? female : who === 'teja' ? male : female) ?? voices[0] ?? null;
+    u.pitch = who === 'pranati' ? 1.25 : who === 'teja' ? 0.85 : 1.05;
+    u.rate = 0.98;
+    synth.speak(u);
+  } catch {
+    /* speech unavailable */
+  }
+}
+
+function DialogueBubble({ step, name, controls, onNext, onSkip }: { step: number; name: string; controls: boolean; onNext: () => void; onSkip: () => void }) {
+  const line = WELCOME_DIALOGUE[step];
+  const { shown, done, finish } = useTypewriter(line.text);
+  const last = step === WELCOME_DIALOGUE.length - 1;
+  const GUIDE_STEPS = WELCOME_DIALOGUE;
   return (
     <div key={step} className="fade-in-up relative w-[min(300px,72vw)] rounded-3xl border border-white/60 bg-[#fffaf5]/95 p-4 text-[#3a2420] shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
-      <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#b4565e]">Museum guide</p>
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#b4565e]">{name}</p>
       <p className="min-h-[3.6em] font-serif text-[17px] leading-snug" onClick={finish}>
         {shown}
         {!done && <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-[#b4565e] align-middle" />}
       </p>
-      <div className="mt-3 flex items-center justify-between">
+      {controls && <div className="mt-3 flex items-center justify-between">
         <div className="flex gap-1.5">
           {GUIDE_STEPS.map((_, i) => (
             <span key={i} className={`h-1.5 rounded-full transition-all ${i === step ? 'w-5 bg-[#c43d63]' : 'w-1.5 bg-[#c43d63]/25'}`} />
@@ -53,7 +76,7 @@ function GuideBubble({ step, onNext, onSkip }: { step: number; onNext: () => voi
             {last ? "LET'S GO" : 'NEXT'} <ArrowRight className="h-4 w-4" />
           </button>
         </div>
-      </div>
+      </div>}
       <span className="absolute -bottom-2 left-8 h-4 w-4 rotate-45 bg-[#fffaf5]/95" />
     </div>
   );
@@ -81,6 +104,23 @@ export default function WelcomePage() {
   const [hostName, setHostName] = useState('');
   const [step, setStep] = useState(0);
   const [guideDone, setGuideDone] = useState(false);
+  const [voice, setVoice] = useState(false);
+
+  // read each line aloud when voice is on
+  useEffect(() => {
+    if (voice && !guideDone) speak(WELCOME_DIALOGUE[step].text, WELCOME_DIALOGUE[step].who);
+    if (guideDone) window.speechSynthesis?.cancel();
+  }, [voice, step, guideDone]);
+  const nextLine = () => (step < WELCOME_DIALOGUE.length - 1 ? setStep(step + 1) : setGuideDone(true));
+  const skip = () => setGuideDone(true);
+  const who = WELCOME_DIALOGUE[step].who;
+  const people = WELCOME_COUPLE.map((c) => ({
+    ...c,
+    bubble:
+      !guideDone && (who === c.id || who === 'both') ? (
+        <DialogueBubble step={step} name={who === 'both' ? 'Teja & Pranati' : c.name} controls={who === c.id || (who === 'both' && c.id === 'pranati')} onNext={nextLine} onSkip={skip} />
+      ) : undefined,
+  }));
   const [panel, setPanel] = useState<Panel>(null);
   const [mode, setMode] = useState<EntranceMode>('intro');
 
@@ -125,8 +165,8 @@ export default function WelcomePage() {
         <EntranceScene
           welcome={welcome}
           mode={mode}
-          people={WELCOME_COUPLE}
-          guide={guideDone ? null : { avatar: GUIDE_AVATAR, bubble: <GuideBubble step={step} onNext={() => (step < GUIDE_STEPS.length - 1 ? setStep(step + 1) : setGuideDone(true))} onSkip={() => setGuideDone(true)} /> }}
+          people={people}
+          guide={null}
         />
       </Suspense>
 
@@ -135,11 +175,22 @@ export default function WelcomePage() {
         <span className="flex items-center gap-2 font-serif text-sm tracking-[0.3em] text-cream/80">
           <Heart className="h-4 w-4 fill-rose text-rose" /> LOVE MUSEUM
         </span>
-        {user && (
-          <Link to="/dashboard" className="pointer-events-auto rounded-full glass-strong px-3 py-1.5 text-xs text-cream/80 hover:text-cream">
-            My museums
-          </Link>
-        )}
+        <div className="pointer-events-auto flex items-center gap-2">
+          {!guideDone && (
+            <button
+              onClick={() => setVoice((v) => !v)}
+              className="flex items-center gap-1.5 rounded-full glass-strong px-3 py-1.5 text-xs text-cream/80 hover:text-cream"
+              aria-label={voice ? 'Turn voice off' : 'Turn voice on'}
+            >
+              {voice ? <Volume2 className="h-4 w-4 text-blush" /> : <VolumeX className="h-4 w-4" />} {voice ? 'Voice on' : 'Voice'}
+            </button>
+          )}
+          {user && (
+            <Link to="/dashboard" className="rounded-full glass-strong px-3 py-1.5 text-xs text-cream/80 hover:text-cream">
+              My museums
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* CREATE / JOIN */}

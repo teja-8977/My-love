@@ -84,6 +84,7 @@ export function TourExperience({ session, avatar, name, actions, banner }: { ses
         g.setOverlay({ type: 'cinema' });
       } else if (i.kind === 'music') g.setOverlay({ type: 'music' });
       else if (i.kind === 'exit') g.setOverlay({ type: 'exit' });
+      else if (i.kind === 'letter') g.setOverlay({ type: 'letter' });
       else if (i.kind === 'party') {
         const x = PARTY_WORLD.x;
         const z = PARTY_WORLD.z;

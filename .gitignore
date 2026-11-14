@@ -152,3 +152,5 @@ vite.config.ts.timestamp-*
 
 # private memories (photos/videos) — never commit
 media/
+
+.vercel
