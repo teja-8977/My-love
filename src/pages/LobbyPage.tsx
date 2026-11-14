@@ -319,7 +319,7 @@ export default function LobbyPage() {
 
           {/* host start / return — only the host sees this */}
           {isHost && (
-            <div className="absolute left-1/2 top-16 z-30 -translate-x-1/2 sm:bottom-10 sm:top-auto">
+            <div className="absolute left-1/2 top-16 z-30 -translate-x-1/2 sm:bottom-10 sm:left-auto sm:right-8 sm:top-auto sm:translate-x-0">
               {museum.status === 'live' ? (
                 <Button size="lg" onClick={() => nav(`/museum/${museum.id}/tour`)}>
                   <Play className="h-5 w-5 fill-white" /> Return to the museum

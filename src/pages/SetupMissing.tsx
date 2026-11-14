@@ -12,7 +12,7 @@ export default function SetupMissing() {
         <ol className="mt-5 list-decimal space-y-2 pl-5 text-sm text-cream/80">
           <li>Create a free project at supabase.com.</li>
           <li>
-            Open <b>SQL Editor</b>, paste <code className="text-blush">supabase/migrations/0001_love_museum.sql</code> and run it.
+            Open <b>SQL Editor</b>, paste <code className="text-blush">supabase/setup_all.sql</code> and run it.
           </li>
           <li>
             Copy <code className="text-blush">.env.example</code> to <code className="text-blush">.env.local</code> and fill in <code>VITE_SUPABASE_URL</code> and{' '}
@@ -20,6 +20,9 @@ export default function SetupMissing() {
           </li>
           <li>
             In <b>Realtime → Settings</b>, turn off <i>“Allow public access”</i> so museum channels stay private.
+          </li>
+          <li>
+            In <b>Authentication → Sign In / Providers</b>, enable <i>Anonymous sign-ins</i> (guest entry).
           </li>
           <li>Restart <code>npm run dev</code>.</li>
         </ol>

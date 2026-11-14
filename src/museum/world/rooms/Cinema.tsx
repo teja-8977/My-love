@@ -2,11 +2,11 @@ import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useTour } from '../../context';
-import { CINEMA_SCREEN, ROOM_BY_ID } from '../../layout';
+import { CINEMA_SCREEN, COFFEE_TABLES, DATE_TABLE, ROOM_BY_ID } from '../../layout';
 import { useCinema } from '../../audio/CinemaController';
 import { CanvasText } from '../CanvasText';
 import { GOLD } from '../Architecture';
-import { RoseVase } from '../Props';
+import { Candle, GlowSprite, RoseVase } from '../Props';
 
 const R = ROOM_BY_ID.cinema;
 const S = CINEMA_SCREEN;
@@ -60,6 +60,8 @@ function Screen() {
   const playing = useCinema((s) => s.playing);
   const time = useCinema((s) => s.time);
   const index = useCinema((s) => s.index);
+  const aspect = useCinema((s) => s.aspect);
+  const fit = aspect >= S.w / S.h ? { w: S.w, h: S.w / aspect } : { w: S.h * aspect, h: S.h };
   const light = useRef<THREE.PointLight>(null!);
   useFrame(({ clock }) => {
     const target = playing ? 9 + Math.sin(clock.elapsedTime * 3) * 1.5 : 2;
@@ -73,8 +75,12 @@ function Screen() {
         <boxGeometry args={[S.w + 0.5, S.h + 0.5, 0.1]} />
         <meshStandardMaterial color="#050304" roughness={0.6} />
       </mesh>
-      <mesh position={[S.x, S.y, S.z]}>
+      <mesh position={[S.x, S.y, S.z - 0.005]}>
         <planeGeometry args={[S.w, S.h]} />
+        <meshBasicMaterial color="#020102" />
+      </mesh>
+      <mesh position={[S.x, S.y, S.z]}>
+        <planeGeometry args={[fit.w, fit.h]} />
         <meshBasicMaterial map={cinema.texture} toneMapped={false} color={new THREE.Color(0.95, 0.95, 0.95)} />
       </mesh>
       {showPoster && (
@@ -114,11 +120,97 @@ function Screen() {
   );
 }
 
+/** The candle-lit table for two in front of the screen. */
+function DateTable() {
+  const { x, z, r } = DATE_TABLE;
+  const cloth = useMemo(() => new THREE.MeshStandardMaterial({ color: '#fbf3ec', roughness: 0.85, side: THREE.DoubleSide }), []);
+  const glass = useMemo(() => new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.35 }), []);
+  const wine = useMemo(() => new THREE.MeshStandardMaterial({ color: '#7a0f24', roughness: 0.2 }), []);
+  return (
+    <group position={[x, 0, z]}>
+      {/* pedestal + top + floor-length tablecloth */}
+      <mesh material={GOLD()} position={[0, 0.03, 0]}>
+        <cylinderGeometry args={[0.32, 0.36, 0.06, 32]} />
+      </mesh>
+      <mesh material={GOLD()} position={[0, 0.38, 0]}>
+        <cylinderGeometry args={[0.04, 0.05, 0.7, 12]} />
+      </mesh>
+      <mesh material={cloth} position={[0, 0.75, 0]}>
+        <cylinderGeometry args={[r, r, 0.03, 48]} />
+      </mesh>
+      <mesh material={cloth} position={[0, 0.5, 0]}>
+        <cylinderGeometry args={[r + 0.005, r + 0.12, 0.5, 48, 1, true]} />
+      </mesh>
+      <mesh material={GOLD()} position={[0, 0.755, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[r, 0.012, 6, 64]} />
+      </mesh>
+      {/* candles, roses and two glasses */}
+      <Candle position={[-0.16, 0.765, -0.12]} height={0.22} />
+      <Candle position={[0.16, 0.765, -0.12]} height={0.16} />
+      <RoseVase position={[0, 0.765, -0.28]} scale={0.6} />
+      {[-0.22, 0.22].map((gx) => (
+        <group key={gx} position={[gx, 0.765, 0.18]}>
+          <mesh material={glass} position={[0, 0.005, 0]}>
+            <cylinderGeometry args={[0.035, 0.035, 0.01, 16]} />
+          </mesh>
+          <mesh material={glass} position={[0, 0.06, 0]}>
+            <cylinderGeometry args={[0.006, 0.006, 0.1, 8]} />
+          </mesh>
+          <mesh material={glass} position={[0, 0.15, 0]}>
+            <cylinderGeometry args={[0.04, 0.028, 0.09, 16, 1, true]} />
+          </mesh>
+          <mesh material={wine} position={[0, 0.13, 0]}>
+            <cylinderGeometry args={[0.033, 0.026, 0.04, 16]} />
+          </mesh>
+        </group>
+      ))}
+      <GlowSprite position={[0, 1.15, -0.1]} size={1.6} color="#ffb070" opacity={0.35} />
+      <pointLight position={[0, 1.1, 0]} intensity={2.5} distance={3.2} decay={1.8} color="#ffb070" />
+    </group>
+  );
+}
+
+/** Low popcorn tables in front of the sofas. */
+function CoffeeTables() {
+  const wood = useMemo(() => new THREE.MeshStandardMaterial({ color: '#3a1a12', roughness: 0.4 }), []);
+  const stripe = useMemo(() => new THREE.MeshStandardMaterial({ color: '#d61f3a', roughness: 0.6 }), []);
+  const corn = useMemo(() => new THREE.MeshStandardMaterial({ color: '#f6e7b8', roughness: 0.95 }), []);
+  return (
+    <>
+      {COFFEE_TABLES.map((t) => (
+        <group key={`${t.x},${t.z}`} position={[t.x, 0, t.z]}>
+          <mesh material={wood} position={[0, 0.55, 0]}>
+            <cylinderGeometry args={[0.24, 0.24, 0.04, 24]} />
+          </mesh>
+          <mesh material={GOLD()} position={[0, 0.28, 0]}>
+            <cylinderGeometry args={[0.025, 0.03, 0.54, 10]} />
+          </mesh>
+          <mesh material={GOLD()} position={[0, 0.02, 0]}>
+            <cylinderGeometry args={[0.16, 0.18, 0.04, 20]} />
+          </mesh>
+          {[0].map((px) => (
+            <group key={px} position={[px, 0.57, 0]}>
+              <mesh material={stripe} position={[0, 0.09, 0]}>
+                <cylinderGeometry args={[0.075, 0.055, 0.18, 12]} />
+              </mesh>
+              <mesh material={corn} position={[0, 0.19, 0]}>
+                <sphereGeometry args={[0.075, 10, 8]} />
+              </mesh>
+            </group>
+          ))}
+        </group>
+      ))}
+    </>
+  );
+}
+
 export function CinemaRoom() {
   return (
     <group>
       <pointLight position={[S.x, 6.2, -6]} intensity={9} distance={18} decay={1.5} color="#ff9fb0" />
       <Screen />
+      <DateTable />
+      <CoffeeTables />
       <Curtain side={1} />
       <Curtain side={-1} />
       <mesh position={[S.x, R.height - 0.5, S.z + 0.3]}>

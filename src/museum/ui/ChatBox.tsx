@@ -78,7 +78,11 @@ export function ChatBox() {
         </form>
       ) : (
         <button onClick={() => set({ chatOpen: true })} className="flex items-center gap-2 rounded-full glass-strong px-4 py-2 text-sm text-cream/80 hover:text-cream">
-          <MessageCircleHeart className="h-4 w-4 text-blush" /> Press <span className="kbd">Enter</span> to chat
+          <MessageCircleHeart className="h-4 w-4 text-blush" />
+          <span className="[@media(hover:none)]:hidden">
+            Press <span className="kbd">Enter</span> to chat
+          </span>
+          <span className="hidden [@media(hover:none)]:inline">Chat</span>
         </button>
       )}
     </div>

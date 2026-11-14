@@ -199,11 +199,13 @@ export interface Seat {
   room: RoomId;
   /** world point the seated camera looks at */
   look?: [number, number, number];
+  /** which side you walk up to the seat from: 1 = front (sofas), -1 = behind (chairs at a table) */
+  approach?: 1 | -1;
 }
 
 export interface Furniture {
   id: string;
-  kind: 'cinema-sofa';
+  kind: 'cinema-sofa' | 'date-chairs';
   x: number;
   z: number;
   yaw: number;
@@ -217,18 +219,39 @@ const CIN_CX = (CIN.x0 + CIN.x1) / 2;
 export const CINEMA_SCREEN = { x: CIN_CX, y: 4.0, z: CIN.z0 + 0.36, w: 10, h: 5.6 };
 const SCREEN_LOOK: [number, number, number] = [CINEMA_SCREEN.x, CINEMA_SCREEN.y - 0.3, CINEMA_SCREEN.z];
 
-function sofa(id: string, x: number, z: number): Furniture {
+function seatPair(id: string, x: number, z: number, kind: Furniture['kind'] = 'cinema-sofa'): Furniture {
   const yaw = Math.PI; // facing north, towards the screen
   const c = Math.cos(yaw);
   const s = Math.sin(yaw);
-  const seats = [-0.42, 0.42].map((sx, i) => ({ id: `${id}:${i}`, x: x + sx * c - 0.1 * s, z: z - sx * s - 0.1 * c, yaw, room: 'cinema' as RoomId, look: SCREEN_LOOK }));
-  return { id, kind: 'cinema-sofa', x, z, yaw, room: 'cinema', seats, color: '#8c1d33' };
+  const approach: 1 | -1 = kind === 'date-chairs' ? -1 : 1;
+  const seats = [-0.42, 0.42].map((sx, i) => ({
+    id: `${id}:${i}`,
+    x: x + sx * c - 0.1 * s,
+    z: z - sx * s - 0.1 * c,
+    yaw,
+    room: 'cinema' as RoomId,
+    look: SCREEN_LOOK,
+    approach,
+  }));
+  return { id, kind, x, z, yaw, room: 'cinema', seats, color: kind === 'date-chairs' ? '#a3203c' : '#8c1d33' };
 }
 
-export const FURNITURE: Furniture[] = [-11, -7.4, -3.8].flatMap((z, row) => [sofa(`cine-${row}a`, CIN_CX - 2.3, z), sofa(`cine-${row}b`, CIN_CX + 2.3, z)]);
+const SOFA_ROWS = [-10.6, -7.0, -3.4];
+/** the candle-lit table for two, front and centre */
+export const DATE_TABLE = { x: CIN_CX, z: -15.6, r: 0.58 };
+export const FURNITURE: Furniture[] = [
+  seatPair('cine-date', CIN_CX, DATE_TABLE.z + 1.0, 'date-chairs'),
+  ...SOFA_ROWS.flatMap((z, row) => [seatPair(`cine-${row}a`, CIN_CX - 2.3, z), seatPair(`cine-${row}b`, CIN_CX + 2.3, z)]),
+];
+/** low popcorn tables in front of every sofa */
+// small popcorn side-tables on the outer end of each sofa (never in front of it, so you can walk up and sit)
+export const COFFEE_TABLES: { x: number; z: number }[] = FURNITURE.filter((f) => f.kind === 'cinema-sofa').map((f) => ({ x: f.x + (f.x < CIN_CX ? -1.45 : 1.45), z: f.z }));
 export const SEATS: Seat[] = FURNITURE.flatMap((f) => f.seats);
 
-const furnitureBox = (f: Furniture): Box => ({ minX: f.x - 1.0, maxX: f.x + 1.0, minZ: f.z - 0.45, maxZ: f.z + 0.45, low: true });
+const furnitureBox = (f: Furniture): Box =>
+  f.kind === 'date-chairs'
+    ? { minX: f.x - 0.85, maxX: f.x + 0.85, minZ: f.z - 0.3, maxZ: f.z + 0.3, low: true }
+    : { minX: f.x - 1.0, maxX: f.x + 1.0, minZ: f.z - 0.45, maxZ: f.z + 0.45, low: true };
 
 // ---------------------------------------------------------------------------
 // Memory gallery photo slots (20)
@@ -256,6 +279,9 @@ const rawSlots = [
   ...southX.slice(0, 5).reverse().map((x, i) => ({ x, z: G.z1 - 0.22, rotY: Math.PI, size: i % 2 ? 1.75 : 2.05 })),
   ...northX.map((x, i) => ({ x, z: G.z0 + 0.22, rotY: 0, size: i % 2 ? 2.0 : 2.45 })),
   ...southX.slice(5).reverse().map((x, i) => ({ x, z: G.z1 - 0.22, rotY: Math.PI, size: i % 2 ? 1.75 : 2.05 })),
+  // slots 20–23: the short end walls, either side of the doorways
+  ...[-19.9, -14.1].map((z) => ({ x: G.x0 + 0.22, z, rotY: Math.PI / 2, size: 1.15 })),
+  ...[-19.9, -14.1].map((z) => ({ x: G.x1 - 0.22, z, rotY: -Math.PI / 2, size: 1.15 })),
 ];
 export const PHOTO_SLOTS: PhotoSlot[] = rawSlots.map((p, i) => ({ slot: i, x: p.x, y: PHOTO_Y, z: p.z, rotY: p.rotY, size: p.size }));
 
@@ -297,8 +323,11 @@ export const PARTY_WORLD = { x: PARTY_POPPER.x + 1.4, z: PARTY_POPPER.z + 1.4 };
 
 export const INTERACTABLES: Interactable[] = [
   ...PHOTO_SLOTS.map((p) => ({ kind: 'photo' as const, id: `photo:${p.slot}`, x: p.x + Math.sin(p.rotY) * 1.7, z: p.z + Math.cos(p.rotY) * 1.7, r: 1.7, slot: p.slot })),
-  ...SEATS.map((s) => ({ kind: 'seat' as const, id: `seat:${s.id}`, x: s.x + Math.sin(s.yaw) * 0.6, z: s.z + Math.cos(s.yaw) * 0.6, r: 0.85, seat: s })),
-  { kind: 'cinema', id: 'cinema', x: CINEMA_SCREEN.x, z: CINEMA_SCREEN.z + 4.5, r: 3.4 },
+  ...SEATS.map((s) => {
+    const d = (s.approach ?? 1) * 0.65;
+    return { kind: 'seat' as const, id: `seat:${s.id}`, x: s.x + Math.sin(s.yaw) * d, z: s.z + Math.cos(s.yaw) * d, r: 1.25, seat: s };
+  }),
+  { kind: 'cinema', id: 'cinema', x: CINEMA_SCREEN.x, z: CINEMA_SCREEN.z + 2.6, r: 2.4 },
   { kind: 'music', id: 'music', x: MUSIC_CONSOLE.x, z: MUSIC_CONSOLE.z + 1.4, r: 1.8 },
   { kind: 'party', id: 'party', x: PARTY_WORLD.x, z: PARTY_WORLD.z, r: 1.6 },
   { kind: 'exit', id: 'exit', x: EXIT_DOOR.x - 1.2, z: EXIT_DOOR.z, r: 1.8 },
@@ -316,6 +345,8 @@ const propBoxes: Box[] = [
   box(-5.5, 19.8, 0.45, 0.45), // entrance urns
   box(5.5, 19.8, 0.45, 0.45),
   box(CINEMA_SCREEN.x, CIN.z0 + 0.8, 5.4, 0.6), // stage
+  box(DATE_TABLE.x, DATE_TABLE.z, DATE_TABLE.r + 0.05, DATE_TABLE.r + 0.05), // table for two
+  ...COFFEE_TABLES.map((t) => box(t.x, t.z, 0.24, 0.24)),
   box(MUSIC_CONSOLE.x, MUSIC_CONSOLE.z, 1.3, 0.5),
   box(PARTY_POPPER.x, PARTY_POPPER.z, 0.4, 0.4),
   box(ROOM_BY_ID.forever.x0 + 0.7, 12, 0.7, 2.4), // heart arch

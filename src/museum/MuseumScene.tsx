@@ -1,6 +1,6 @@
 import { Suspense, useLayoutEffect, useMemo, useRef } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { Environment, Lightformer, AdaptiveDpr } from '@react-three/drei';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Environment, Lightformer, PerformanceMonitor } from '@react-three/drei';
 import { Bloom, EffectComposer, Vignette, ToneMapping } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
 import * as THREE from 'three';
@@ -14,7 +14,10 @@ import { CinemaRoom } from './world/rooms/Cinema';
 import { ForeverRoom } from './world/rooms/Forever';
 import { CelebrationRoom } from './world/rooms/Celebration';
 import { FinalRoom } from './world/rooms/Final';
-import { LocalPlayer } from './player/LocalPlayer';
+import { LocalPlayer, localPlayer, debugEnabled } from './player/LocalPlayer';
+import { linkedTo, useQuality, visibleRooms } from './quality';
+import type { RoomId } from './layout';
+import { roomAt } from './layout';
 import { RemotePlayers } from './player/RemotePlayers';
 import { TourContext, type TourSession } from './context';
 import { useGame } from './store';
@@ -76,16 +79,81 @@ function Confetti() {
   );
 }
 
+const NO_CULL = debugEnabled() && new URLSearchParams(window.location.search).get('cull') === '0';
+
+/** Renders its children only while the player can see one of the given rooms. */
+function Zone({ rooms, children }: { rooms: RoomId[]; children: React.ReactNode }) {
+  const ref = useRef<THREE.Group>(null!);
+  const last = useRef<string>('');
+  const tick = useRef(0);
+  useFrame(() => {
+    const here = roomAt(localPlayer.pos.x, localPlayer.pos.z)?.id ?? 'none';
+    // re-apply on room change, and every 0.5 s for content that finished loading later
+    const now = performance.now();
+    if (here === last.current && now - tick.current < 500) return;
+    tick.current = now;
+    last.current = here;
+    const vis = visibleRooms(localPlayer.pos.x, localPlayer.pos.z);
+    ref.current.visible = NO_CULL || rooms.some((r) => vis.has(r));
+    // only the room you're standing in (or the rooms at both ends of your corridor) keeps its lights on;
+    // rooms seen through a doorway are lit by the shared ambient light only
+    const lit = NO_CULL || rooms.includes(here as RoomId) || (/^c\d$/.test(here) && rooms.some((r) => linkedTo(here as RoomId).includes(r)));
+    ref.current.traverse((o) => {
+      if ((o as THREE.Light).isLight) o.visible = lit;
+    });
+  });
+  return <group ref={ref}>{children}</group>;
+}
+
+/** Debug-only stats for testing (draw calls, lights, fps). */
+function PerfProbe() {
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  const frames = useRef<number[]>([]);
+  useFrame(() => {
+    const now = performance.now();
+    frames.current.push(now);
+    while (frames.current.length && now - frames.current[0] > 2000) frames.current.shift();
+    let lights = 0;
+    const list: string[] = [];
+    scene.traverseVisible((o) => {
+      if ((o as THREE.PointLight).isPointLight || (o as THREE.SpotLight).isSpotLight) {
+        lights++;
+        const w = new THREE.Vector3();
+        o.getWorldPosition(w);
+        list.push(w.toArray().map((n) => Math.round(n)).join(','));
+      }
+    });
+    (window as unknown as Record<string, unknown>).__lmPerf = {
+      calls: gl.info.render.calls,
+      triangles: gl.info.render.triangles,
+      lights,
+      list,
+      fps: frames.current.length / 2,
+      dpr: gl.getPixelRatio(),
+      quality: useQuality.getState().quality,
+    };
+  });
+  return null;
+}
+
 export function MuseumScene({ session, avatar, name, occupiedRef }: { session: TourSession; avatar: AvatarConfig; name: string; occupiedRef: React.MutableRefObject<Set<string>> }) {
+  const quality = useQuality((s) => s.quality);
+  const low = quality === 'low';
+  const setQuality = useQuality((s) => s.set);
   return (
     <Canvas
-      dpr={[1, 1.6]}
-      gl={{ antialias: false, powerPreference: 'high-performance', stencil: false }}
+      key={quality /* tone mapping / AA are fixed at creation */}
+      dpr={low ? [0.8, 1.15] : [1, 1.6]}
+      gl={{ antialias: low, powerPreference: 'high-performance', stencil: false }}
       camera={{ fov: 55, near: 0.1, far: 400, position: [0, 2, 9] }}
       onCreated={({ gl }) => {
-        gl.toneMapping = THREE.NoToneMapping;
+        // high quality tone-maps in the post-processing pass; low quality does it directly (no extra passes)
+        gl.toneMapping = low ? THREE.NeutralToneMapping : THREE.NoToneMapping;
       }}
     >
+      <PerformanceMonitor flipflops={2} onDecline={() => useQuality.getState().auto && setQuality('low', true)} />
+      {debugEnabled() && <PerfProbe />}
       <TourContext.Provider value={session}>
         <color attach="background" args={['#120a0d']} />
         <hemisphereLight args={['#fff1e0', '#3a2228', 0.6]} />
@@ -98,13 +166,27 @@ export function MuseumScene({ session, avatar, name, occupiedRef }: { session: T
 
         <Suspense fallback={null}>
           <Architecture />
-          <PorticoAndEntrance />
-          <WelcomeRoom />
-          <GalleryRoom />
-          <CinemaRoom />
-          <ForeverRoom />
-          <CelebrationRoom />
-          <FinalRoom />
+          <Zone rooms={['portico', 'entrance']}>
+            <PorticoAndEntrance />
+          </Zone>
+          <Zone rooms={['welcome']}>
+            <WelcomeRoom />
+          </Zone>
+          <Zone rooms={['gallery']}>
+            <GalleryRoom />
+          </Zone>
+          <Zone rooms={['cinema']}>
+            <CinemaRoom />
+          </Zone>
+          <Zone rooms={['forever']}>
+            <ForeverRoom />
+          </Zone>
+          <Zone rooms={['celebration']}>
+            <CelebrationRoom />
+          </Zone>
+          <Zone rooms={['final']}>
+            <FinalRoom />
+          </Zone>
           {FURNITURE.map((f) => (
             <FurniturePiece key={f.id} f={f} />
           ))}
@@ -113,12 +195,13 @@ export function MuseumScene({ session, avatar, name, occupiedRef }: { session: T
           <Confetti />
         </Suspense>
 
-        <EffectComposer multisampling={4}>
-          <Bloom mipmapBlur intensity={0.7} luminanceThreshold={1.0} luminanceSmoothing={0.2} radius={0.7} />
-          <Vignette eskil={false} offset={0.25} darkness={0.55} />
-          <ToneMapping mode={ToneMappingMode.NEUTRAL} />
-        </EffectComposer>
-        <AdaptiveDpr pixelated={false} />
+        {!low && (
+          <EffectComposer multisampling={4}>
+            <Bloom mipmapBlur intensity={0.7} luminanceThreshold={1.0} luminanceSmoothing={0.2} radius={0.7} />
+            <Vignette eskil={false} offset={0.25} darkness={0.55} />
+            <ToneMapping mode={ToneMappingMode.NEUTRAL} />
+          </EffectComposer>
+        )}
       </TourContext.Provider>
     </Canvas>
   );

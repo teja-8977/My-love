@@ -53,27 +53,26 @@ export default function TourPage() {
     return () => clearInterval(t);
   }, [id, allowed]);
 
-  // realtime engines — created once per museum visit
+  // realtime engines — exactly one set per museum visit. Created and disposed in the SAME effect, so
+  // React's development double-mount (and any re-run) can never leave a second live connection behind.
+  const userId = user?.id;
   useEffect(() => {
-    if (!id || !allowed || !user || engines) return;
+    if (!id || !allowed || !userId) return;
     useGame.getState().reset();
-    const net = new MuseumNet(id, { id: user.id, name, avatar, role: isHostRef.current ? 'host' : 'guest' });
+    const net = new MuseumNet(id, { id: userId, name, avatar, role: isHostRef.current ? 'host' : 'guest' });
     const cinema = new CinemaController(net, () => isHostRef.current);
     const music = new MusicEngine(net, () => isHostRef.current);
     net.connect().catch((e) => toast(errMsg(e), 'error'));
     setEngines({ net, cinema, music });
+    return () => {
+      cinema.dispose();
+      music.dispose();
+      net.close();
+      setEngines(null);
+    };
+    // name/avatar changes are pushed with retrack() below instead of reconnecting
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, allowed, user]);
-
-  useEffect(
-    () => () => {
-      if (!engines) return;
-      engines.cinema.dispose();
-      engines.music.dispose();
-      engines.net.close();
-    },
-    [engines],
-  );
+  }, [id, allowed, userId]);
 
   useEffect(() => {
     if (engines && media) engines.cinema.setVideos(media.filter((m) => m.kind === 'video'));

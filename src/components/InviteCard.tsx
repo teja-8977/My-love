@@ -106,6 +106,12 @@ export default function InviteCard({ url, title, onRegenerate, compact }: { url:
     <div className={compact ? 'flex flex-col items-center gap-3' : 'flex flex-col items-center gap-4 sm:flex-row sm:items-start'}>
       <canvas ref={canvas} className={'rounded-2xl shadow-[0_20px_60px_-20px_rgba(232,87,122,0.6)] ' + (compact ? 'w-40' : 'w-56')} />
       <div className="w-full min-w-0 flex-1 space-y-3">
+        {/^https?:\/\/(localhost|127\.0\.0\.1)/i.test(url) && (
+          <p className="rounded-xl border border-amber-300/40 bg-amber-300/10 p-2.5 text-xs text-amber-100">
+            This QR code points to <b>localhost</b>, which only works on this computer. Deploy the site (e.g. Vercel) and set
+            VITE_PUBLIC_URL, or open the app via your Wi-Fi address (npx vite --host), so phones and other laptops can join.
+          </p>
+        )}
         {!compact && <p className="text-sm text-cream/70">Share this private link or QR code with your special person. They'll sign in, design their avatar and ask to enter — you decide who comes in.</p>}
         <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 p-2 pl-3">
           <span className="min-w-0 flex-1 truncate font-mono text-xs text-blush">{url}</span>

@@ -95,6 +95,7 @@ export class MuseumNet {
     const game = useGame.getState();
     game.set({ connection: 'connecting' });
     await supabase.realtime.setAuth();
+    if (this.closed) return; // disposed while connecting (e.g. React dev double-mount)
 
     const ch = supabase.channel(`museum:${this.museumId}`, {
       config: { private: true, broadcast: { self: false, ack: false }, presence: { key: this.me.id } },

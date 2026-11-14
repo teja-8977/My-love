@@ -148,6 +148,25 @@ Presence removes players who disconnect, and the Supabase client automatically r
 
 ---
 
+## Adding your photos & videos
+
+The easiest way, especially for big phone videos:
+
+1. Put photos in **`media/photos/`** (up to 24, shown in file-name order) and videos in **`media/videos/`** (up to 4).
+   Both folders are git-ignored, so your memories never go to GitHub.
+2. Optional: add captions in `media/photos/captions.json` (`{ "01.jpg": "Our first date ❤️" }`) and video titles in
+   `media/videos/titles.json` (`{ "proposal.mp4": "The proposal" }`).
+3. Create your room in the app, then run:
+   ```bash
+   npm run import-media              # into your newest museum
+   npm run import-media -- 9C228D    # or a specific room code
+   ```
+   Videos over 50 MB (the Supabase free-plan limit per file) or not in MP4 are compressed to H.264 MP4 automatically
+   (bundled ffmpeg). Running it again replaces what's there.
+
+This needs `SUPABASE_SECRET_KEY` in `.env.local`. It is local-only; never use a `VITE_` prefix for it.
+You can also upload from the host dashboard (*Manage → Memory Gallery / Cinema*), up to 50 MB per video.
+
 ## Entry experience (QR → museum)
 
 `/` and `/join/<code>` open the **3D entrance**: the LOVE MUSEUM arch, a personalised floating welcome

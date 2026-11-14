@@ -11,7 +11,43 @@ const m = (color: string, roughness = 0.7, metalness = 0) => new THREE.MeshStand
 export function FurniturePiece({ f }: { f: Furniture }) {
   return (
     <group position={[f.x, 0, f.z]} rotation={[0, f.yaw, 0]}>
-      <Sofa color={f.color ?? '#8c1d33'} kind={f.kind} />
+      {f.kind === 'date-chairs' ? <DateChairs color={f.color ?? '#a3203c'} /> : <Sofa color={f.color ?? '#8c1d33'} kind={f.kind} />}
+    </group>
+  );
+}
+
+/** Two velvet dining chairs side by side (local +Z = the way they face). */
+function DateChairs({ color }: { color: string }) {
+  const velvet = useMemo(() => new THREE.MeshStandardMaterial({ color, roughness: 0.9 }), [color]);
+  const gold = GOLD();
+  return (
+    <group>
+      {[-0.42, 0.42].map((x) => (
+        <group key={x} position={[x, 0, 0]}>
+          <mesh material={velvet} position={[0, 0.46, 0.04]} castShadow>
+            <boxGeometry args={[0.5, 0.09, 0.48]} />
+          </mesh>
+          <mesh material={gold} position={[0, 0.405, 0.04]}>
+            <boxGeometry args={[0.52, 0.03, 0.5]} />
+          </mesh>
+          {[-0.21, 0.21].map((lx) =>
+            [-0.16, 0.24].map((lz) => (
+              <mesh key={`${lx}${lz}`} material={gold} position={[lx, 0.2, lz]}>
+                <cylinderGeometry args={[0.018, 0.014, 0.4, 8]} />
+              </mesh>
+            )),
+          )}
+          <mesh material={velvet} position={[0, 0.86, -0.19]} castShadow>
+            <boxGeometry args={[0.46, 0.66, 0.07]} />
+          </mesh>
+          <mesh material={velvet} position={[0, 1.19, -0.19]} rotation={[Math.PI / 2, 0, 0]} scale={[1, 1, 1]}>
+            <cylinderGeometry args={[0.23, 0.23, 0.07, 24, 1, false, -Math.PI / 2, Math.PI]} />
+          </mesh>
+          <mesh material={gold} position={[0, 0.86, -0.15]}>
+            <torusGeometry args={[0.16, 0.012, 6, 28]} />
+          </mesh>
+        </group>
+      ))}
     </group>
   );
 }

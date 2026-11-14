@@ -73,8 +73,9 @@ export function standUp() {
   const s = localPlayer.seat;
   if (!s) return;
   localPlayer.seat = null;
-  localPlayer.pos.x = s.x + Math.sin(s.yaw) * 0.75;
-  localPlayer.pos.z = s.z + Math.cos(s.yaw) * 0.75;
+  const d = (s.approach ?? 1) * 0.8; // chairs at a table: step back from it
+  localPlayer.pos.x = s.x + Math.sin(s.yaw) * d;
+  localPlayer.pos.z = s.z + Math.cos(s.yaw) * d;
   resolveCircle(localPlayer.pos, RADIUS, COLLIDERS);
   useGame.getState().set({ seated: null });
 }
@@ -383,6 +384,14 @@ export function LocalPlayer({ avatar, name, occupiedRef }: { avatar: AvatarConfi
 
 export { SEATS };
 
-if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug')) {
+export const debugEnabled = () => {
+  try {
+    return new URLSearchParams(window.location.search).has('debug') || localStorage.getItem('lm-debug') === '1';
+  } catch {
+    return false;
+  }
+};
+
+if (typeof window !== 'undefined' && debugEnabled()) {
   (window as unknown as { __lm: typeof localPlayer }).__lm = localPlayer;
 }

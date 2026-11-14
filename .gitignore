@@ -149,3 +149,6 @@ vite.config.ts.timestamp-*
 .turbo
 
 !.env.example
+
+# private memories (photos/videos) — never commit
+media/

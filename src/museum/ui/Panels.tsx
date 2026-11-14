@@ -3,6 +3,7 @@ import { Crown, DoorOpen, Heart, UserX, X } from 'lucide-react';
 import { useTour } from '../context';
 import { useGame } from '../store';
 import { DANCES } from '../../avatar/poses';
+import { useQuality } from '../quality';
 
 export interface TourActions {
   leave: () => Promise<void> | void;
@@ -130,6 +131,23 @@ const KEYS: [string, string][] = [
   ['Drag / Wheel', 'Look around · Zoom'],
 ];
 
+function QualityToggle() {
+  const quality = useQuality((s) => s.quality);
+  const set = useQuality((s) => s.set);
+  return (
+    <div className="mt-4 flex items-center justify-between rounded-xl bg-white/5 px-3 py-2 text-sm">
+      <span>Graphics</span>
+      <div className="flex gap-1">
+        {(['low', 'high'] as const).map((q) => (
+          <button key={q} onClick={() => set(q)} className={`rounded-full px-3 py-1 text-xs ${quality === q ? 'bg-rose text-white' : 'bg-white/10 text-cream/70'}`}>
+            {q === 'low' ? 'Smooth' : 'Beautiful'}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function HelpPanel() {
   const setOverlay = useGame((s) => s.setOverlay);
   return (
@@ -151,6 +169,8 @@ export function HelpPanel() {
       <p className="mt-4 flex items-center gap-2 text-xs text-cream/50">
         <Heart className="h-3.5 w-3.5 fill-rose text-rose" /> Dances: {DANCES.map((d) => d.name).join(' · ')}
       </p>
+      <p className="mt-3 text-xs text-cream/60">On a phone: left joystick to walk (push far to run), drag anywhere to look, pinch to zoom.</p>
+      <QualityToggle />
     </Shell>
   );
 }

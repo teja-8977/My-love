@@ -122,8 +122,19 @@ export function welcomeLine(partnerNames?: string | null) {
   return n ? `Welcome to ${n}'s Love Museum ❤️` : 'Welcome to Your Love Museum ❤️';
 }
 
+/** The address other people's phones/laptops can reach: VITE_PUBLIC_URL (e.g. your Vercel site) or the current origin. */
+export function publicOrigin() {
+  const configured = (import.meta.env.VITE_PUBLIC_URL as string | undefined)?.trim().replace(/\/+$/, '');
+  return configured || window.location.origin;
+}
+
+/** true when the invite would point at this computer only (localhost) — other devices can't open it */
+export function inviteIsLocalOnly() {
+  return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(publicOrigin());
+}
+
 export function inviteUrl(code: string) {
-  return `${window.location.origin}/join/${code}`;
+  return `${publicOrigin()}/join/${code}`;
 }
 
 // ---------- media ----------

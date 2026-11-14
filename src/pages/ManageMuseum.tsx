@@ -14,6 +14,9 @@ import ParticipantsList from '../components/ParticipantsList';
 
 type Tab = 'overview' | 'photos' | 'videos' | 'people' | 'invite';
 
+/** Supabase free plan: 50 MB per uploaded file */
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+
 export default function ManageMuseum() {
   const { id } = useParams();
   const nav = useNavigate();
@@ -274,7 +277,7 @@ function PhotoManager({ museumId, photos, reload }: { museumId: string; photos: 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-serif text-2xl">Memory Gallery</h2>
-          <p className="text-sm text-cream/60">20 frames. Photos keep their original proportions and are never cropped in the museum.</p>
+          <p className="text-sm text-cream/60">{PHOTO_SLOTS} frames. Photos keep their original proportions and are never cropped in the museum.</p>
         </div>
         <Button onClick={() => bulkInput.current?.click()}>
           <Upload className="h-4 w-4" /> Add photos
@@ -360,6 +363,8 @@ function VideoManager({ museumId, videos, reload }: { museumId: string; videos: 
   const [busy, setBusy] = useState<number | null>(null);
   const upload = async (slot: number, file: File) => {
     if (!file.type.startsWith('video/')) return toast('Please choose a video file (MP4 recommended)', 'error');
+    if (file.size > MAX_VIDEO_BYTES)
+      return toast(`This video is ${(file.size / 1048576).toFixed(0)} MB — the storage plan allows 50 MB per file. Put it in media/videos and run "npm run import-media" to compress and upload it automatically.`, 'error');
     setBusy(slot);
     try {
       await uploadMedia({
@@ -383,7 +388,7 @@ function VideoManager({ museumId, videos, reload }: { museumId: string; videos: 
   return (
     <Card>
       <h2 className="font-serif text-2xl">Our Cinema</h2>
-      <p className="text-sm text-cream/60">Four videos for the theatre. MP4 (H.264) plays everywhere. Large files take a while to upload — keep this tab open.</p>
+      <p className="text-sm text-cream/60">Four videos for the theatre. MP4 (H.264) plays everywhere, up to 50 MB each. Bigger videos: put them in <code className="text-blush">media/videos</code> and run <code className="text-blush">npm run import-media</code> — they are compressed automatically.</p>
       <div className="mt-5 grid gap-5 sm:grid-cols-2">
         {Array.from({ length: VIDEO_SLOTS }, (_, slot) => {
           const v = bySlot.get(slot);

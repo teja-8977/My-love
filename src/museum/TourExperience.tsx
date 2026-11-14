@@ -8,7 +8,9 @@ import type { TourSession } from './context';
 import { TourContext } from './context';
 import { useGame } from './store';
 import { clearInput, input, isMoveKey } from './player/input';
-import { interact, localPlayer } from './player/LocalPlayer';
+import { debugEnabled, interact, localPlayer } from './player/LocalPlayer';
+import { useCinema } from './audio/CinemaController';
+import { useMusic } from './audio/MusicEngine';
 import type { Interactable } from './layout';
 import { PARTY_WORLD } from './layout';
 
@@ -37,6 +39,19 @@ function JourneyTitle() {
 export function TourExperience({ session, avatar, name, actions, banner }: { session: TourSession; avatar: AvatarConfig; name: string; actions: TourActions; banner?: React.ReactNode }) {
   const occupied = useRef(new Set<string>());
   const { net, music, cinema } = session;
+
+  // automated-test hooks (only in a browser that opted in with ?debug / localStorage lm-debug=1)
+  useEffect(() => {
+    if (!debugEnabled()) return;
+    const w = window as unknown as Record<string, unknown>;
+    const events: string[] = [];
+    const offs = [net.on('join', (p) => events.push(`join:${p.name}`)), net.on('leave', (p) => events.push(`leave:${p.name}`))];
+    w.__lmTour = { video: cinema.video, cinema: () => useCinema.getState(), music: () => useMusic.getState(), game: () => useGame.getState(), remotes: () => net.remotes.size, events };
+    return () => {
+      offs.forEach((o) => o());
+      delete w.__lmTour;
+    };
+  }, [cinema, net]);
 
   // seats taken by other people
   useEffect(() => {

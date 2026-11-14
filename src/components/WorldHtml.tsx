@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -33,10 +33,13 @@ export function WorldHtml({ position = [0, 0, 0], children, interactive = false,
   const gl = useThree((s) => s.gl);
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
-  const el = useMemo(() => document.createElement('div'), []);
+  // a fresh element per mount: React may not reuse a container whose old root is still unmounting
+  const elRef = useRef<HTMLDivElement | null>(null);
   const root = useRef<Root | null>(null);
 
   useEffect(() => {
+    const el = document.createElement('div');
+    elRef.current = el;
     const parent = gl.domElement.parentElement ?? document.body;
     el.style.cssText = `position:absolute;top:0;left:0;z-index:${zIndex};pointer-events:${interactive ? 'auto' : 'none'};will-change:transform;display:none;`;
     parent.appendChild(el);
@@ -44,13 +47,14 @@ export function WorldHtml({ position = [0, 0, 0], children, interactive = false,
     root.current = r;
     return () => {
       root.current = null;
+      elRef.current = null;
       // unmount after the current render pass (avoids React's synchronous-unmount warning)
       setTimeout(() => {
         r.unmount();
         el.remove();
       }, 0);
     };
-  }, [gl, el, zIndex, interactive]);
+  }, [gl, zIndex, interactive]);
 
   useEffect(() => {
     root.current?.render(<>{children}</>);
@@ -58,7 +62,8 @@ export function WorldHtml({ position = [0, 0, 0], children, interactive = false,
 
   useFrame(() => {
     const g = group.current;
-    if (!g) return;
+    const el = elRef.current;
+    if (!g || !el) return;
     g.getWorldPosition(tmp);
     const dist = tmp.distanceTo(camera.position);
     tmp.project(camera);

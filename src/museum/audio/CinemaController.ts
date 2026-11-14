@@ -12,6 +12,8 @@ export interface CinemaUi {
   muted: boolean;
   needsGesture: boolean;
   buffering: boolean;
+  /** width / height of the current video (portrait phone videos are < 1) */
+  aspect: number;
 }
 
 export const useCinema = create<CinemaUi>(() => ({
@@ -23,6 +25,7 @@ export const useCinema = create<CinemaUi>(() => ({
   muted: false,
   needsGesture: false,
   buffering: false,
+  aspect: 16 / 9,
 }));
 
 const DRIFT = 0.6; // seconds of tolerated drift before re-seeking
@@ -42,6 +45,9 @@ export class CinemaController {
   private proximity = 0;
   private offs: (() => void)[] = [];
   private pending: VideoState | null = null;
+  private lastRemote: VideoState | null = null;
+  /** pending "start when loaded" from a video switch; cancelled by Pause */
+  private autoStart: (() => void) | null = null;
 
   constructor(net: MuseumNet, isHost: () => boolean) {
     this.net = net;
@@ -60,14 +66,22 @@ export class CinemaController {
       useCinema.setState({
         time: v.currentTime || 0,
         duration: Number.isFinite(v.duration) ? v.duration : 0,
+        ...(v.videoWidth && v.videoHeight ? { aspect: v.videoWidth / v.videoHeight } : {}),
         playing: !v.paused && !v.ended,
       });
     v.addEventListener('timeupdate', ui);
     v.addEventListener('durationchange', ui);
+    v.addEventListener('loadedmetadata', ui);
     v.addEventListener('play', ui);
     v.addEventListener('pause', ui);
-    v.addEventListener('waiting', () => useCinema.setState({ buffering: true }));
-    v.addEventListener('playing', () => useCinema.setState({ buffering: false }));
+    v.addEventListener('waiting', () => {
+      useCinema.setState({ buffering: true });
+      if (this.isHost()) this.broadcast(); // guests hold at the host's frame while it buffers
+    });
+    v.addEventListener('playing', () => {
+      useCinema.setState({ buffering: false });
+      if (this.isHost()) this.broadcast();
+    });
     v.addEventListener('canplay', () => {
       useCinema.setState({ buffering: false });
       if (this.pending) {
@@ -90,7 +104,7 @@ export class CinemaController {
     );
     this.heartbeat = window.setInterval(() => {
       if (this.isHost() && !v.paused) this.broadcast();
-    }, 2000);
+    }, 1000);
   }
 
   setVideos(videos: ResolvedMedia[]) {
@@ -111,6 +125,7 @@ export class CinemaController {
 
   /** guests: follow host state */
   private apply(s: VideoState) {
+    this.lastRemote = s;
     if (typeof s?.index !== 'number' || !this.videos.length) {
       this.pending = s;
       return;
@@ -144,8 +159,9 @@ export class CinemaController {
 
   /** called from a user click when autoplay was blocked */
   unlock() {
-    this.tryPlay();
-    if (!this.isHost()) this.net.requestVideo();
+    if (this.isHost()) return;
+    if (this.lastRemote?.playing) this.tryPlay();
+    this.net.requestVideo();
   }
 
   private broadcast() {
@@ -156,20 +172,32 @@ export class CinemaController {
   // ---------- host controls ----------
   select(index: number) {
     if (!this.isHost()) return;
+    this.cancelAutoStart();
     this.load(index);
-    this.video.addEventListener(
-      'canplay',
-      () => {
-        this.tryPlay();
-        this.broadcast();
-      },
-      { once: true },
-    );
+    const start = () => {
+      this.autoStart = null;
+      this.tryPlay();
+      this.broadcast();
+    };
+    this.autoStart = start;
+    this.video.addEventListener('canplay', start, { once: true });
     this.broadcast();
+  }
+
+  private cancelAutoStart() {
+    if (this.autoStart) this.video.removeEventListener('canplay', this.autoStart);
+    this.autoStart = null;
   }
 
   togglePlay() {
     if (!this.isHost()) return;
+    // pressing Pause while a newly chosen film is still loading must keep it paused
+    if (this.autoStart) {
+      this.cancelAutoStart();
+      this.video.pause();
+      this.broadcast();
+      return;
+    }
     if (!this.video.src && this.videos.length) this.load(0);
     if (this.video.paused) {
       this.video.play().then(() => this.broadcast(), () => useCinema.setState({ needsGesture: true }));
