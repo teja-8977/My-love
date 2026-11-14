@@ -90,8 +90,15 @@ export class CinemaController {
         this.apply(p);
       }
     });
+    // playlist: when a video finishes, the next one starts automatically (back to the first after the last)
     v.addEventListener('ended', () => {
-      if (this.isHost()) this.broadcast();
+      if (!this.isHost()) return;
+      if (this.videos.length > 1) this.select((useCinema.getState().index + 1) % this.videos.length);
+      else {
+        v.currentTime = 0;
+        this.tryPlay();
+        this.broadcast();
+      }
     });
 
     this.offs.push(
