@@ -8,6 +8,7 @@ import { CanvasText } from '../CanvasText';
 import { Chandelier, GOLD, BRASS } from '../Architecture';
 import { Plant } from '../Props';
 import { wallWashTexture } from '../textures';
+import { useQuality } from '../../quality';
 
 const R = ROOM_BY_ID.gallery;
 
@@ -16,34 +17,56 @@ export function fitPhoto(aspect: number, size: number) {
   return aspect >= 1 ? { w: size, h: size / aspect } : { w: size * aspect, h: size };
 }
 
-const loader = new THREE.TextureLoader();
-loader.setCrossOrigin('anonymous');
+/**
+ * Wall photos don't need full resolution: decode off the main thread, shrink to ≤1024 px
+ * (512 px in low quality) and upload one at a time. Full-size images were ~250 MB of GPU
+ * memory for 42 photos and caused stutters on phones when walking into the gallery.
+ */
+let queue: Promise<unknown> = Promise.resolve();
+function loadSmall(url: string, max: number): Promise<THREE.Texture> {
+  const job = queue.then(async () => {
+    const blob = await (await fetch(url)).blob();
+    const probe = await createImageBitmap(blob);
+    const k = Math.min(1, max / Math.max(probe.width, probe.height));
+    const w = Math.max(1, Math.round(probe.width * k));
+    const h = Math.max(1, Math.round(probe.height * k));
+    probe.close();
+    const bmp = await createImageBitmap(blob, { resizeWidth: w, resizeHeight: h, resizeQuality: 'high', imageOrientation: 'flipY' });
+    const t = new THREE.Texture(bmp);
+    t.flipY = false; // already flipped while decoding (ImageBitmaps can't be flipped on upload)
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 4;
+    t.generateMipmaps = true;
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.needsUpdate = true;
+    return t;
+  });
+  queue = job.catch(() => {});
+  return job;
+}
 
 function usePhotoTexture(url: string | undefined) {
+  const low = useQuality((q) => q.quality === 'low');
   const [tex, setTex] = useState<THREE.Texture | null>(null);
   useEffect(() => {
     if (!url) return;
     let alive = true;
     let loaded: THREE.Texture | null = null;
-    loader.load(
-      url,
-      (t) => {
-        t.colorSpace = THREE.SRGBColorSpace;
-        t.anisotropy = 8;
-        t.generateMipmaps = true;
-        t.minFilter = THREE.LinearMipmapLinearFilter;
+    loadSmall(url, low ? 512 : 1024)
+      .then((t) => {
         loaded = t;
         if (alive) setTex(t);
         else t.dispose();
-      },
-      undefined,
-      () => alive && setTex(null),
-    );
+      })
+      .catch(() => alive && setTex(null));
     return () => {
       alive = false;
-      loaded?.dispose();
+      if (loaded) {
+        (loaded.image as ImageBitmap | undefined)?.close?.();
+        loaded.dispose();
+      }
     };
-  }, [url]);
+  }, [url, low]);
   return tex;
 }
 
@@ -66,11 +89,11 @@ export function PhotoFrame({ slot, media }: { slot: PhotoSlot; media?: ResolvedM
 
   return (
     <group position={[slot.x, slot.y, slot.z]} rotation={[0, slot.rotY, 0]}>
-      {/* wall wash from the picture light */}
-      <mesh position={[0, H / 2 + 0.2 - (H + 1.2) / 2, -0.03]}>
+      {/* wall wash from the picture light (not on the display boards, where it would be hidden) */}
+      {!slot.reach && <mesh position={[0, H / 2 + 0.2 - (H + 1.2) / 2, -0.03]}>
         <planeGeometry args={[W * 1.7, H + 1.2]} />
         <meshBasicMaterial map={wallWashTexture()} color="#ffd9a0" transparent opacity={0.45} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
-      </mesh>
+      </mesh>}
       {/* frame: outer moulding + inner lip */}
       <mesh material={gold} position={[0, 0, 0.04]} castShadow>
         <boxGeometry args={[W, H, 0.08]} />

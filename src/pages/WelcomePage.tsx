@@ -196,11 +196,15 @@ export default function WelcomePage() {
       {/* CREATE / JOIN */}
       {guideDone && !panel && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 p-4 pb-6 md:inset-y-0 md:flex md:items-center md:px-[3vw] md:pb-0">
-          <div className="grid w-full grid-cols-1 gap-3 md:flex md:justify-between">
-            {[
-              { k: 'create', icon: Sparkles, t: 'CREATE A ROOM', d: 'Create your own private Love Museum.', on: startCreate, hi: !inviteCode },
-              { k: 'join', icon: DoorOpen, t: 'JOIN A ROOM', d: inviteCode ? `Join ${hostName || 'your special person'}'s museum.` : "Join your special person's museum.", on: startJoin, hi: !!inviteCode },
-            ].map(({ k, icon: Icon, t, d, on, hi }, i) => (
+          <div className={`grid w-full grid-cols-1 gap-3 md:flex ${inviteCode ? 'md:justify-center' : 'md:justify-between'}`}>
+            {(inviteCode
+              ? // opened from an invitation link: the only way is in
+                [{ k: 'join', icon: DoorOpen, t: 'ENTER THE MUSEUM', d: `${hostName || 'Your special person'} is waiting for you inside ❤️`, on: startJoin, hi: true }]
+              : [
+                  { k: 'create', icon: Sparkles, t: 'CREATE A ROOM', d: 'Create your own private Love Museum.', on: startCreate, hi: true },
+                  { k: 'join', icon: DoorOpen, t: 'JOIN A ROOM', d: "Join your special person's museum.", on: startJoin, hi: false },
+                ]
+            ).map(({ k, icon: Icon, t, d, on, hi }, i) => (
               <button
                 key={k}
                 onClick={on}
@@ -221,10 +225,10 @@ export default function WelcomePage() {
       )}
 
       {(panel === 'auth-create' || panel === 'auth-join') && (
-        <Sheet title={panel === 'auth-create' ? 'Create your room' : 'Join a room'} onClose={() => setPanel(null)}>
+        <Sheet title={panel === 'auth-create' ? 'Create your room' : inviteCode ? 'Welcome ❤️' : 'Join a room'} onClose={() => setPanel(null)}>
           <AuthPanel
             next={inviteCode ? `/join/${inviteCode}` : '/'}
-            intro="Tell us who you are — it only takes a moment."
+            intro={inviteCode ? `Tell us your name to enter ${hostName ? hostName + "'s" : 'the'} museum.` : 'Tell us who you are — it only takes a moment.'}
             onDone={() => setPanel(panel === 'auth-create' ? 'create' : 'join')}
           />
         </Sheet>
@@ -241,7 +245,7 @@ export default function WelcomePage() {
       )}
 
       {panel === 'join' && user && (
-        <Sheet title="Join a room" onClose={() => setPanel(null)}>
+        <Sheet title={inviteCode ? 'Opening the doors…' : 'Join a room'} onClose={() => setPanel(null)}>
           <JoinForm initial={inviteCode ?? ''} onValid={(code, mid, status) => nav(status === 'pending' || status === 'accepted' ? `/museum/${mid}/lobby` : `/avatar?join=${code}`)} />
         </Sheet>
       )}
