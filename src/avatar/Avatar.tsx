@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, type MutableRefObject, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, type MutableRefObject, type ReactNode } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { AvatarConfig } from './config';
 import { dampPose, makePose, targetPose, type AnimName, type Pose } from './poses';
 
@@ -122,6 +123,85 @@ function surfZ(fs: (typeof FACE)['round'], x: number, y: number) {
   return Math.max(z1, z2);
 }
 
+// ---------- draw-call merging ----------
+const BONE = { bone: true };
+const STOP = { stop: true };
+
+/**
+ * The character is built from ~80 small meshes, i.e. ~80 draw calls per avatar every frame.
+ * Everything that moves together (the whole head, each arm / leg segment …) is merged into one
+ * vertex-coloured mesh per joint, which brings an avatar down to ~20 draw calls. Transparent and
+ * unlit parts (blush, eye highlights, lenses) stay as they are.
+ */
+function mergeStatic(root: THREE.Object3D) {
+  const buckets = new Map<string, { bone: THREE.Object3D; gloss: boolean; geos: THREE.BufferGeometry[] }>();
+  const hidden: THREE.Mesh[] = [];
+  const rel = new THREE.Matrix4();
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || m.userData.merged) return;
+    const mat = m.material as THREE.MeshStandardMaterial;
+    if (Array.isArray(mat) || !mat.isMeshStandardMaterial || mat.transparent) return;
+    m.updateMatrix();
+    rel.copy(m.matrix);
+    let bone: THREE.Object3D | null = m.parent;
+    while (bone && !bone.userData.bone) {
+      if (bone.userData.stop) return;
+      bone.updateMatrix();
+      rel.premultiply(bone.matrix);
+      bone = bone.parent;
+    }
+    if (!bone) return;
+    let g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
+    g.applyMatrix4(rel);
+    const n = g.attributes.position.count;
+    const col = new Float32Array(n * 3);
+    const c = mat.color;
+    for (let i = 0; i < n; i++) {
+      col[i * 3] = c.r;
+      col[i * 3 + 1] = c.g;
+      col[i * 3 + 2] = c.b;
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const gloss = mat.roughness < 0.35;
+    const key = bone.uuid + (gloss ? ':g' : ':m');
+    let b = buckets.get(key);
+    if (!b) buckets.set(key, (b = { bone, gloss, geos: [] }));
+    b.geos.push(g);
+    m.visible = false;
+    hidden.push(m);
+  });
+  const made = (gloss: boolean) => {
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: gloss ? 0.18 : 0.62, side: THREE.DoubleSide });
+    // keep the soft "lit from inside" look of skin and hair: a little of the base colour as emission
+    mat.onBeforeCompile = (sh) => {
+      sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += vColor.rgb * 0.09;');
+    };
+    return mat;
+  };
+  const mats = { g: made(true), m: made(false) };
+  const added: THREE.Mesh[] = [];
+  for (const b of buckets.values()) {
+    const merged = mergeGeometries(b.geos);
+    b.geos.forEach((g) => g.dispose());
+    if (!merged) continue;
+    const mesh = new THREE.Mesh(merged, b.gloss ? mats.g : mats.m);
+    mesh.userData.merged = true;
+    b.bone.add(mesh);
+    added.push(mesh);
+  }
+  return () => {
+    added.forEach((m) => {
+      m.removeFromParent();
+      m.geometry.dispose();
+    });
+    mats.g.dispose();
+    mats.m.dispose();
+    hidden.forEach((m) => (m.visible = true));
+  };
+}
+
 export function Avatar(props: Props) {
   return <ChibiAvatar {...props} />;
 }
@@ -164,6 +244,9 @@ function ChibiAvatar({ config: cfg, state, anim = 'idle', dance = 0, shadow = tr
   const body = useMemo(() => bodyOf(cfg), [cfg]);
   const mats = useMemo(() => makeMats(cfg), [cfg]);
   useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats]);
+
+  const rootRef = useRef<THREE.Group>(null!);
+  useLayoutEffect(() => mergeStatic(rootRef.current), [cfg, mats]);
 
   // joints
   const spinG = useRef<THREE.Group>(null!);
@@ -254,10 +337,10 @@ function ChibiAvatar({ config: cfg, state, anim = 'idle', dance = 0, shadow = tr
   const eyeSY = cfg.eyes === 'round' ? 1.14 : cfg.eyes === 'almond' ? 0.92 : 0.84;
 
   const legs = (side: 1 | -1, hipRef: typeof lHip, kneeRef: typeof lKnee) => (
-    <group ref={hipRef} position={[side * legX, -0.03, 0]}>
+    <group ref={hipRef} userData={BONE} position={[side * legX, -0.03, 0]}>
       <mesh geometry={capsule(thighR, 0.3)} material={thighMat} position={[0, -0.13, 0]} />
       {cfg.bottom === 'shorts' && !skirtLike && <mesh geometry={capsule(thighR * 1.14, 0.19)} material={mats.bottom} position={[0, -0.07, 0]} />}
-      <group ref={kneeRef} position={[0, -0.27, 0]}>
+      <group ref={kneeRef} userData={BONE} position={[0, -0.27, 0]}>
         <mesh geometry={capsule(shinR, 0.27)} material={shinMat} position={[0, -0.12, 0]} />
         {cfg.bottom === 'jeans' && !skirtLike && (
           <mesh geometry={cached(`cuff${shinR}`, () => new THREE.CylinderGeometry(shinR * 1.28, shinR * 1.32, 0.05, 16))} material={mats.cuff} position={[0, -0.215, 0]} />
@@ -268,12 +351,12 @@ function ChibiAvatar({ config: cfg, state, anim = 'idle', dance = 0, shadow = tr
   );
 
   const arm = (side: 1 | -1, shRef: typeof lSh, elRef: typeof lEl) => (
-    <group ref={shRef} position={[side * body.shoulderX, 0.3, 0]}>
+    <group ref={shRef} userData={BONE} position={[side * body.shoulderX, 0.3, 0]}>
       <mesh geometry={sphere(uArmR * 1.06, 14, 10)} material={sleeves === 'short' ? mats.top : armMat} />
       <mesh geometry={capsule(uArmR, 0.2)} material={sleeves === 'short' ? mats.skin : armMat} position={[0, -0.085, 0]} />
       {sleeves === 'short' && <mesh geometry={capsule(uArmR * 1.32, 0.12)} material={mats.top} position={[0, -0.035, 0]} />}
       {t === 'overshirt' && <mesh geometry={capsule(uArmR * 1.18, 0.1)} material={mats.top} position={[0, -0.14, 0]} />}
-      <group ref={elRef} position={[0, -0.17, 0]}>
+      <group ref={elRef} userData={BONE} position={[0, -0.17, 0]}>
         <mesh geometry={capsule(fArmR, 0.17)} material={sleeves === 'long' ? armMat : mats.skin} position={[0, -0.07, 0]} />
         {sleeves === 'three' && <mesh geometry={capsule(fArmR * 1.25, 0.08)} material={mats.top} position={[0, -0.01, 0]} />}
         {sleeves === 'long' && t !== 'sweater' && t !== 'hoodie' && (
@@ -300,9 +383,9 @@ function ChibiAvatar({ config: cfg, state, anim = 'idle', dance = 0, shadow = tr
           <circleGeometry args={[0.38, 20]} />
         </mesh>
       )}
-      <group scale={cfg.height}>
-        <group ref={spinG}>
-          <group ref={hips}>
+      <group scale={cfg.height} ref={rootRef}>
+        <group ref={spinG} userData={BONE}>
+          <group ref={hips} userData={BONE}>
             {/* pelvis */}
             <mesh geometry={lathe(body.pts, -Infinity, 0.07)} material={isDress || kurta ? mats.top : mats.bottom} scale={[1, 1, 0.8]} />
             {!skirtLike && !kurta && t !== 'hoodie' && t !== 'sweater' && (
@@ -314,7 +397,7 @@ function ChibiAvatar({ config: cfg, state, anim = 'idle', dance = 0, shadow = tr
             {legs(1, lHip, lKnee)}
             {legs(-1, rHip, rKnee)}
 
-            <group ref={spine} position={[0, 0.02, 0]}>
+            <group ref={spine} userData={BONE} position={[0, 0.02, 0]}>
               {/* upper body */}
               <mesh geometry={lathe(body.pts, 0.0, Infinity)} material={torsoMat} scale={[1, 1, 0.8]} />
               {(vest || t === 'blazer' || t === 'overshirt') && (
@@ -361,7 +444,7 @@ function ChibiAvatar({ config: cfg, state, anim = 'idle', dance = 0, shadow = tr
               )}
 
               {/* head */}
-              <group ref={head} position={[0, 0.41, 0]} scale={HEAD_SCALE}>
+              <group ref={head} userData={BONE} position={[0, 0.41, 0]} scale={HEAD_SCALE}>
                 <group position={[0, R * 0.92, 0]}>
                   <mesh geometry={sphere(R, 32, 24)} material={mats.skin} scale={fs.c} />
                   <mesh geometry={sphere(R * 0.86, 28, 20)} material={mats.skin} position={[0, fs.jy, JAW_C]} scale={fs.j} />
@@ -373,7 +456,7 @@ function ChibiAvatar({ config: cfg, state, anim = 'idle', dance = 0, shadow = tr
                     [1, -1].map((s) => <mesh key={s} geometry={sphere(0.009, 8, 6)} material={mats.gold} position={[s * R * fs.c[0] * 0.99, -0.06, 0]} />)}
 
                   {/* big glossy eyes */}
-                  <group ref={eyesRef} position={[0, eyeY, 0]}>
+                  <group ref={eyesRef} userData={BONE} position={[0, eyeY, 0]}>
                     {[1, -1].map((s) => (
                       <group key={s} position={[s * eyeX, 0, sz(eyeX, eyeY) - 0.008]} rotation={[0, s * 0.34, cfg.eyes === 'almond' ? s * -0.08 : 0]}>
                         <mesh geometry={sphere(0.044, 20, 16)} material={mats.white} scale={[0.95, eyeSY, 0.5]} />
@@ -480,7 +563,7 @@ function ChibiAvatar({ config: cfg, state, anim = 'idle', dance = 0, shadow = tr
             </group>
           </group>
         </group>
-        {children}
+        <group userData={STOP}>{children}</group>
       </group>
     </group>
   );

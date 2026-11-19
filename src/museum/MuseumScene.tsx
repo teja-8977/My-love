@@ -164,7 +164,7 @@ export function MuseumScene({ session, avatar, name, occupiedRef }: { session: T
   const [startLow] = useState(low);
   return (
     <Canvas
-      dpr={low ? [0.8, 1.15] : [1, 1.6]}
+      dpr={low ? [0.8, 1.15] : [1, 1.5]}
       gl={{ antialias: startLow, powerPreference: 'high-performance', stencil: false }}
       camera={{ fov: 55, near: 0.1, far: 400, position: [0, 2, 9] }}
       onCreated={({ gl }) => {
@@ -217,7 +217,7 @@ export function MuseumScene({ session, avatar, name, occupiedRef }: { session: T
         </Suspense>
 
         {!low && (
-          <EffectComposer multisampling={4}>
+          <EffectComposer multisampling={2}>
             <Bloom mipmapBlur intensity={0.7} luminanceThreshold={1.0} luminanceSmoothing={0.2} radius={0.7} />
             <Vignette eskil={false} offset={0.25} darkness={0.55} />
             <ToneMapping mode={ToneMappingMode.NEUTRAL} />
