@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { Sparkles } from '@react-three/drei';
 import { useTour } from '../../context';
-import { PHOTO_SLOTS, ROOM_BY_ID, type PhotoSlot } from '../../layout';
+import { GALLERY_BOARDS, PHOTO_SLOTS, ROOM_BY_ID, type PhotoSlot } from '../../layout';
 import type { ResolvedMedia } from '../../../lib/types';
 import { CanvasText } from '../CanvasText';
 import { Chandelier, GOLD, BRASS } from '../Architecture';
@@ -137,6 +137,36 @@ export function PhotoFrame({ slot, media }: { slot: PhotoSlot; media?: ResolvedM
   );
 }
 
+/** A free-standing, double-sided photo board (sage panel, gilded edge, two brass feet). */
+function DisplayBoard({ x, z, w, h, d }: { x: number; z: number; w: number; h: number; d: number }) {
+  const gold = GOLD();
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, h / 2 + 0.12, 0]}>
+        <boxGeometry args={[w, h, d]} />
+        <meshStandardMaterial color="#4f5f4c" roughness={0.85} />
+      </mesh>
+      {/* gilded frame around the panel */}
+      {[h + 0.12, 0.12].map((y) => (
+        <mesh key={y} material={gold} position={[0, y, 0]}>
+          <boxGeometry args={[w + 0.08, 0.06, d + 0.04]} />
+        </mesh>
+      ))}
+      {[-1, 1].map((s) => (
+        <mesh key={s} material={gold} position={[(s * (w + 0.04)) / 2, h / 2 + 0.12, 0]}>
+          <boxGeometry args={[0.06, h + 0.06, d + 0.04]} />
+        </mesh>
+      ))}
+      {/* feet */}
+      {[-1, 1].map((s) => (
+        <mesh key={s} material={gold} position={[s * (w / 2 - 0.3), 0.04, 0]}>
+          <boxGeometry args={[0.12, 0.08, 0.6]} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 export function GalleryRoom() {
   const { photos } = useTour();
   const bySlot = useMemo(() => new Map(photos.map((p) => [p.slot, p])), [photos]);
@@ -148,6 +178,9 @@ export function GalleryRoom() {
       ))}
       {[-11.3, 0, 11.3].map((x) => (
         <Chandelier key={x} position={[x, R.height - 1.6, cz]} scale={0.85} drop={1.6} />
+      ))}
+      {GALLERY_BOARDS.map((b) => (
+        <DisplayBoard key={b.x} {...b} />
       ))}
       {PHOTO_SLOTS.map((s) => (
         <PhotoFrame key={s.slot} slot={s} media={bySlot.get(s.slot)} />

@@ -1,4 +1,4 @@
-import { Suspense, useLayoutEffect, useMemo, useRef } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment, Lightformer, PerformanceMonitor } from '@react-three/drei';
 import { Bloom, EffectComposer, Vignette, ToneMapping } from '@react-three/postprocessing';
@@ -105,6 +105,25 @@ function Zone({ rooms, children }: { rooms: RoomId[]; children: React.ReactNode 
   return <group ref={ref}>{children}</group>;
 }
 
+/**
+ * Switches tone mapping when the quality changes, without rebuilding the canvas
+ * (re-creating it reloaded every texture and froze the tour for seconds).
+ */
+function QualitySync({ low }: { low: boolean }) {
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  useEffect(() => {
+    const mode = low ? THREE.NeutralToneMapping : THREE.NoToneMapping;
+    if (gl.toneMapping === mode) return;
+    gl.toneMapping = mode;
+    scene.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      (Array.isArray(m) ? m : m ? [m] : []).forEach((x) => (x.needsUpdate = true));
+    });
+  }, [low, gl, scene]);
+  return null;
+}
+
 /** Debug-only stats for testing (draw calls, lights, fps). */
 function PerfProbe() {
   const gl = useThree((s) => s.gl);
@@ -141,17 +160,19 @@ export function MuseumScene({ session, avatar, name, occupiedRef }: { session: T
   const quality = useQuality((s) => s.quality);
   const low = quality === 'low';
   const setQuality = useQuality((s) => s.set);
+  // antialiasing can only be chosen when the canvas is created; keep the first choice
+  const [startLow] = useState(low);
   return (
     <Canvas
-      key={quality /* tone mapping / AA are fixed at creation */}
       dpr={low ? [0.8, 1.15] : [1, 1.6]}
-      gl={{ antialias: low, powerPreference: 'high-performance', stencil: false }}
+      gl={{ antialias: startLow, powerPreference: 'high-performance', stencil: false }}
       camera={{ fov: 55, near: 0.1, far: 400, position: [0, 2, 9] }}
       onCreated={({ gl }) => {
         // high quality tone-maps in the post-processing pass; low quality does it directly (no extra passes)
         gl.toneMapping = low ? THREE.NeutralToneMapping : THREE.NoToneMapping;
       }}
     >
+      <QualitySync low={low} />
       <PerformanceMonitor flipflops={2} onDecline={() => useQuality.getState().auto && setQuality('low', true)} />
       {debugEnabled() && <PerfProbe />}
       <TourContext.Provider value={session}>

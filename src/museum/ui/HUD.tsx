@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, CircleHelp, DoorOpen, Film, Map as MapIcon, Users, Wifi, WifiOff } from 'lucide-react';
+import { ArrowRight, CircleHelp, DoorOpen, Film, Images, Map as MapIcon, Shirt, Users, Wifi, WifiOff } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useGame } from '../store';
 import { teleportTo } from '../player/LocalPlayer';
 import { ROOM_BY_ID } from '../layout';
@@ -10,7 +11,7 @@ import { PhotoViewer } from './PhotoViewer';
 import { CinemaPanel } from './CinemaPanel';
 import { MusicPanel } from './MusicPanel';
 import { ExitDialog, HelpPanel, PeoplePanel, type TourActions } from './Panels';
-import { TouchControls } from './TouchControls';
+import { TouchControls, type TouchAction } from './TouchControls';
 import { BirthdayLetter } from './BirthdayLetter';
 
 function RoomTitle() {
@@ -78,8 +79,9 @@ function GoTo() {
   );
 }
 
-export function HUD({ actions, onTouchAction }: { actions: TourActions; onTouchAction: (a: 'E' | 'F' | 'chat') => void }) {
+export function HUD({ actions, onTouchAction }: { actions: TourActions; onTouchAction: (a: TouchAction) => void }) {
   const { museum } = useTour();
+  const navigate = useNavigate();
   const overlay = useGame((s) => s.overlay);
   const prompt = useGame((s) => s.prompt);
   const notices = useGame((s) => s.notices);
@@ -94,21 +96,34 @@ export function HUD({ actions, onTouchAction }: { actions: TourActions; onTouchA
   return (
     <div className="pointer-events-none absolute inset-0 select-none">
       {/* top bar */}
-      <div className="absolute left-4 right-4 top-4 flex items-start justify-between gap-3">
-        <div className="pointer-events-auto rounded-2xl glass-strong px-4 py-2">
+      <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2 sm:left-4 sm:right-4 sm:top-4">
+        <div className="pointer-events-auto hidden rounded-2xl glass-strong px-4 py-2 min-[480px]:block">
           <p className="font-serif text-lg leading-tight">{museum.name}</p>
           <p className="flex items-center gap-1.5 text-xs text-cream/60">
             {connection === 'online' ? <Wifi className="h-3 w-3 text-emerald-300" /> : <WifiOff className="h-3 w-3 text-amber-300" />}
             {connection === 'online' ? 'Connected' : connection === 'connecting' ? 'Connecting…' : 'Reconnecting…'}
           </p>
         </div>
-        <div className="pointer-events-auto flex gap-2">
+        <div className="pointer-events-auto flex flex-1 flex-wrap justify-end gap-2">
           {room === 'cinema' && (
             <button onClick={() => setOverlay({ type: 'cinema' })} className="flex items-center gap-1.5 rounded-full glass-strong px-3 py-2 text-sm hover:bg-white/10">
               <Film className="h-4 w-4 text-blush" /> Cinema
             </button>
           )}
           <GoTo />
+          <button onClick={() => onTouchAction('P')} className="flex items-center gap-1.5 rounded-full glass-strong px-3 py-2 text-sm hover:bg-white/10" aria-label="Photos full screen">
+            <Images className="h-4 w-4 text-blush" /> <span className="hidden sm:inline">Photos</span>
+            <span className="kbd hidden [@media(hover:hover)]:inline">P</span>
+          </button>
+          {museum.id !== 'demo' && (
+            <button
+              onClick={() => navigate('/avatar?next=' + encodeURIComponent('/museum/' + museum.id + '/tour'))}
+              className="flex items-center gap-1.5 rounded-full glass-strong px-3 py-2 text-sm hover:bg-white/10"
+              aria-label="Change avatar"
+            >
+              <Shirt className="h-4 w-4 text-blush" /> <span className="hidden sm:inline">Avatar</span>
+            </button>
+          )}
           <button onClick={() => setOverlay({ type: 'people' })} className="flex items-center gap-1.5 rounded-full glass-strong px-3 py-2 text-sm hover:bg-white/10">
             <Users className="h-4 w-4 text-blush" /> {players.length}
           </button>
@@ -136,7 +151,7 @@ export function HUD({ actions, onTouchAction }: { actions: TourActions; onTouchA
       {prompt && !overlay && (
         <button
           onClick={() => onTouchAction('E')}
-          className="fade-in-up pointer-events-auto absolute bottom-28 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full glass-strong px-4 py-2 text-sm hover:bg-white/10"
+          className="fade-in-up pointer-events-auto absolute bottom-28 left-1/2 [@media(pointer:coarse)]:bottom-[15rem] flex -translate-x-1/2 items-center gap-2 rounded-full glass-strong px-4 py-2 text-sm hover:bg-white/10"
         >
           <span className="kbd">{prompt.key}</span> {prompt.text}
         </button>
@@ -153,10 +168,10 @@ export function HUD({ actions, onTouchAction }: { actions: TourActions; onTouchA
           )}
         </div>
       )}
-      <p className="absolute bottom-[13.5rem] left-0 right-0 text-center text-[11px] text-cream/50 [@media(hover:hover)]:hidden">Drag anywhere to look around · pinch to zoom</p>
+      <p className="absolute bottom-[12.5rem] left-0 right-0 hidden text-center [@media(pointer:coarse)]:block text-[11px] text-cream/50">Drag anywhere to look around · pinch to zoom</p>
 
       {dancing && (
-        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 rounded-full glass-strong px-3 py-1.5 text-xs text-cream/80">
+        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 rounded-full glass-strong px-3 py-1.5 text-xs text-cream/80 [@media(pointer:coarse)]:hidden">
           {DANCES[danceStyle].emoji} {DANCES[danceStyle].name} · <span className="kbd">1</span>–<span className="kbd">4</span> change · <span className="kbd">F</span> stop
         </div>
       )}
@@ -172,7 +187,7 @@ export function HUD({ actions, onTouchAction }: { actions: TourActions; onTouchA
 
       {!overlay && (
         <div className="absolute bottom-4 right-4 hidden gap-2 text-xs text-cream/50 [@media(hover:hover)]:flex">
-          <span className="kbd">WASD</span> move <span className="kbd">Shift</span> run <span className="kbd">E</span> interact <span className="kbd">F</span> dance
+          <span className="kbd">WASD</span> move <span className="kbd">Shift</span> run <span className="kbd">E</span> interact <span className="kbd">F</span> dance <span className="kbd">P</span> photos
         </div>
       )}
 

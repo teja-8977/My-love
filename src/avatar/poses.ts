@@ -198,16 +198,16 @@ export function targetPose(out: Pose, anim: AnimName, t: number, opts: { dance?:
         out.headX = -0.15;
         out.spineX = -0.06;
       } else {
-        // Heart hands above the head + gentle bob
+        // Heart hands in front of the chest + gentle bob
         const p = t * 3;
-        out.lShZ = 2.5;
-        out.rShZ = -2.5;
-        out.lShX = -0.4;
-        out.rShX = -0.4;
-        out.lShY = -0.3;
-        out.rShY = 0.3;
-        out.lEl = -1.25;
-        out.rEl = -1.25;
+        out.lShZ = -0.15;
+        out.rShZ = 0.15;
+        out.lShX = -1.15;
+        out.rShX = -1.15;
+        out.lShY = 0.35;
+        out.rShY = -0.35;
+        out.lEl = -1.1;
+        out.rEl = -1.1;
         out.hipY = -Math.abs(s(p)) * 0.035;
         out.lKnee = Math.abs(s(p)) * 0.25;
         out.rKnee = Math.abs(s(p)) * 0.25;

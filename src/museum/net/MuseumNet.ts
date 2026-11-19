@@ -43,6 +43,8 @@ export interface RemotePlayer {
   yaw: number;
   anim: { current: AnimState };
   lastUpdate: number;
+  /** recent states with their arrival time, for smooth buffered interpolation */
+  buf: { t: number; x: number; y: number; z: number; r: number }[];
 }
 
 type Handlers = {
@@ -184,6 +186,7 @@ export class MuseumNet {
           yaw: Math.PI,
           anim: { current: { anim: 'idle', dance: 0, speed: 1 } },
           lastUpdate: 0,
+          buf: [],
         });
       }
     }
@@ -196,7 +199,7 @@ export class MuseumNet {
     if (![s.x, s.y, s.z, s.r].every(Number.isFinite)) return;
     let r = this.remotes.get(s.id);
     if (!r) {
-      r = { id: s.id, target: null, pos: new THREE.Vector3(s.x, s.y, s.z), yaw: s.r, anim: { current: { anim: 'idle', dance: 0, speed: 1 } }, lastUpdate: 0 };
+      r = { id: s.id, target: null, pos: new THREE.Vector3(s.x, s.y, s.z), yaw: s.r, anim: { current: { anim: 'idle', dance: 0, speed: 1 } }, lastUpdate: 0, buf: [] };
       this.remotes.set(s.id, r);
     }
     if (!r.target) {
@@ -205,6 +208,8 @@ export class MuseumNet {
     }
     r.target = s;
     r.lastUpdate = performance.now();
+    r.buf.push({ t: r.lastUpdate, x: s.x, y: s.y, z: s.z, r: s.r });
+    if (r.buf.length > 24) r.buf.splice(0, r.buf.length - 24);
   }
 
   // ------------- senders -------------

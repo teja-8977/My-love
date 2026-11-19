@@ -37,3 +37,15 @@ export const BIRTHDAY_LETTER = {
   closing: ['With all my love,', 'Forever yours,', 'Teja ❤️'],
   footer: 'Our story began on March 17, 2023. And this is only the beginning...',
 };
+
+/**
+ * The lock on the birthday letter: she has to type the day you met.
+ * Accepted as 17/03/2023, 17-3-2023, 17.03.23, 17032023 or "17 March 2023".
+ */
+export const LETTER_LOCK = {
+  question: 'When did our love story begin?',
+  subtitle: 'Type the date we first met 💕',
+  answer: { day: 17, month: 3, year: 2023 },
+  /** shown after a few wrong tries */
+  extraHint: 'It was a spring day in March 🌸',
+};

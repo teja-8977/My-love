@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { WorldHtml } from '../../components/WorldHtml';
 import { Crown } from 'lucide-react';
 import { CHAT_TTL, useGame } from '../store';
+import { LABEL_HEIGHT } from '../../avatar/Avatar';
 
 /** Name tag + floating chat bubbles (each visible for 10 seconds). */
 export function PlayerLabel({ userId, name, self, host }: { userId: string; name: string; self?: boolean; host?: boolean }) {
@@ -18,7 +19,7 @@ export function PlayerLabel({ userId, name, self, host }: { userId: string; name
   useEffect(() => setNow(Date.now()), [all.length]);
 
   return (
-    <WorldHtml position={[0, 2.08, 0]} zIndex={20} maxDistance={30}>
+    <WorldHtml position={[0, LABEL_HEIGHT, 0]} zIndex={20} maxDistance={30}>
       <div className="flex flex-col items-center gap-1.5">
         {mine.map((m) => (
           <div key={m.mid} className="bubble" style={{ opacity: Math.min(1, (CHAT_TTL - (now - m.ts)) / 1200) }}>

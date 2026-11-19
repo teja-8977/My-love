@@ -90,6 +90,10 @@ export class CinemaController {
         this.apply(p);
       }
     });
+    // a broken / unplayable video never stops the show: skip to the next one
+    v.addEventListener('error', () => {
+      if (this.isHost() && this.videos.length > 1) setTimeout(() => this.select((useCinema.getState().index + 1) % this.videos.length), 1500);
+    });
     // playlist: when a video finishes, the next one starts automatically (back to the first after the last)
     v.addEventListener('ended', () => {
       if (!this.isHost()) return;
@@ -115,9 +119,12 @@ export class CinemaController {
   }
 
   setVideos(videos: ResolvedMedia[]) {
+    const first = !this.videos.length;
     this.videos = [...videos].sort((a, b) => a.slot - b.slot);
     if (!this.video.src && this.videos.length) this.load(useCinema.getState().index);
     if (!this.isHost()) this.net.requestVideo();
+    // the host's cinema starts by itself and keeps looping through every video
+    else if (first && this.videos.length) this.select(useCinema.getState().index);
   }
 
   private load(index: number) {

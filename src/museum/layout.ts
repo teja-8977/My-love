@@ -254,7 +254,7 @@ const furnitureBox = (f: Furniture): Box =>
     : { minX: f.x - 1.0, maxX: f.x + 1.0, minZ: f.z - 0.45, maxZ: f.z + 0.45, low: true };
 
 // ---------------------------------------------------------------------------
-// Memory gallery photo slots (20)
+// Memory gallery photo slots: 24 on the walls + 20 on display boards down the middle
 // ---------------------------------------------------------------------------
 export interface PhotoSlot {
   slot: number;
@@ -263,6 +263,8 @@ export interface PhotoSlot {
   z: number;
   rotY: number;
   size: number;
+  /** distance in front of the frame where it can be interacted with */
+  reach?: number;
 }
 
 const G = ROOM_BY_ID.gallery;
@@ -283,7 +285,25 @@ const rawSlots = [
   ...[-19.9, -14.1].map((z) => ({ x: G.x0 + 0.22, z, rotY: Math.PI / 2, size: 1.15 })),
   ...[-19.9, -14.1].map((z) => ({ x: G.x1 - 0.22, z, rotY: -Math.PI / 2, size: 1.15 })),
 ];
-export const PHOTO_SLOTS: PhotoSlot[] = rawSlots.map((p, i) => ({ slot: i, x: p.x, y: PHOTO_Y, z: p.z, rotY: p.rotY, size: p.size }));
+const WALL_SLOTS: PhotoSlot[] = rawSlots.map((p, i) => ({ slot: i, x: p.x, y: PHOTO_Y, z: p.z, rotY: p.rotY, size: p.size }));
+
+/** free-standing, double-sided display boards along the middle of the gallery (two photos per side) */
+export const GALLERY_BOARDS = [-12.4, -6.2, 0, 6.2, 12.4].map((x) => ({ x, z: (G.z0 + G.z1) / 2, w: 3.4, h: 2.75, d: 0.12 }));
+const BOARD_SLOTS: PhotoSlot[] = GALLERY_BOARDS.flatMap((b, i) =>
+  [0, Math.PI].flatMap((rotY, side) =>
+    [-0.82, 0.82].map((dx, j) => ({
+      slot: 24 + i * 4 + side * 2 + j,
+      // the north-facing side is mirrored so the order still reads left → right
+      x: b.x + (side ? -dx : dx),
+      y: 1.75,
+      z: b.z + Math.cos(rotY) * (b.d / 2),
+      rotY,
+      size: 1.32,
+      reach: 1.25,
+    })),
+  ),
+);
+export const PHOTO_SLOTS: PhotoSlot[] = [...WALL_SLOTS, ...BOARD_SLOTS];
 
 // ---------------------------------------------------------------------------
 // Room features (world coordinates)
@@ -327,7 +347,10 @@ export type Interactable =
 export const PARTY_WORLD = { x: PARTY_POPPER.x + 1.4, z: PARTY_POPPER.z + 1.4 };
 
 export const INTERACTABLES: Interactable[] = [
-  ...PHOTO_SLOTS.map((p) => ({ kind: 'photo' as const, id: `photo:${p.slot}`, x: p.x + Math.sin(p.rotY) * 1.7, z: p.z + Math.cos(p.rotY) * 1.7, r: 1.7, slot: p.slot })),
+  ...PHOTO_SLOTS.map((p) => {
+    const d = p.reach ?? 1.7;
+    return { kind: 'photo' as const, id: `photo:${p.slot}`, x: p.x + Math.sin(p.rotY) * d, z: p.z + Math.cos(p.rotY) * d, r: d, slot: p.slot };
+  }),
   ...SEATS.map((s) => {
     const d = (s.approach ?? 1) * 0.65;
     return { kind: 'seat' as const, id: `seat:${s.id}`, x: s.x + Math.sin(s.yaw) * d, z: s.z + Math.cos(s.yaw) * d, r: 1.25, seat: s };
@@ -357,6 +380,7 @@ const propBoxes: Box[] = [
   box(PARTY_POPPER.x, PARTY_POPPER.z, 0.4, 0.4),
   box(ROOM_BY_ID.forever.x0 + 0.7, 12, 0.7, 2.4), // heart arch
   box(LETTER_SPOT.x, LETTER_SPOT.z, 0.5, 0.5), // letter pedestal
+  ...GALLERY_BOARDS.map((b) => box(b.x, b.z, b.w / 2 + 0.05, 0.2, false)), // photo display boards
   box(CAKE_SPOT.x, CAKE_SPOT.z, 0.6, 0.6), // cake table
   box(FIN.x0 + 1.5, FIN.z1 - 0.8, 0.4, 0.4), // heart pedestals
   box(FIN.x1 - 1.5, FIN.z1 - 0.8, 0.4, 0.4),

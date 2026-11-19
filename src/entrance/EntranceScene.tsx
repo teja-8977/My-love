@@ -341,12 +341,12 @@ function Person({ p, position, rotation, greet }: { p: EntrancePerson; position:
     <group position={position} rotation={[0, rotation, 0]}>
       <Avatar config={p.avatar} state={anim} />
       {p.bubble && (
-        <WorldHtml position={[0, 2.25 * p.avatar.height, 0]} zIndex={30} interactive clampToScreen>
+        <WorldHtml position={[0, 1.95 * p.avatar.height, 0]} zIndex={30} interactive clampToScreen>
           {p.bubble}
         </WorldHtml>
       )}
       {p.name && !p.bubble && (
-        <WorldHtml position={[0, 2.0 * p.avatar.height, 0]}>
+        <WorldHtml position={[0, 1.78 * p.avatar.height, 0]}>
           <div className={`flex flex-col items-center whitespace-nowrap ${p.dim ? 'opacity-50' : ''}`}>
             <span className="nametag text-[12px]">{p.name}</span>
             {p.tag && <span className="mt-0.5 rounded-full bg-black/50 px-2 text-[10px] text-champagne">{p.tag}</span>}

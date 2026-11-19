@@ -127,6 +127,9 @@ export function LocalPlayer({ avatar, name, occupiedRef }: { avatar: AvatarConfi
   const promptTick = useRef(0);
   const camPos = useRef(new THREE.Vector3());
   const camTarget = useRef(new THREE.Vector3());
+  const vel = useRef({ x: 0, z: 0 });
+  // scratch vectors reused every frame (no garbage → no GC hitches)
+  const tmp = useRef({ look: new THREE.Vector3(), head: new THREE.Vector3(), desired: new THREE.Vector3(), lookTarget: new THREE.Vector3() });
   const initialised = useRef(false);
 
   // restore position after a refresh
@@ -253,6 +256,8 @@ export function LocalPlayer({ avatar, name, occupiedRef }: { avatar: AvatarConfi
     if (lp.seat) {
       lp.pos.set(lp.seat.x, 0, lp.seat.z);
       lp.yaw = lp.seat.yaw;
+      vel.current.x = 0;
+      vel.current.z = 0;
     } else {
       // move relative to camera
       const fx = -Math.sin(lp.camYaw);
@@ -262,14 +267,27 @@ export function LocalPlayer({ avatar, name, occupiedRef }: { avatar: AvatarConfi
       const dx = fx * axes.y + rx * axes.x;
       const dz = fz * axes.y + rz * axes.x;
       const mag = Math.min(1, Math.hypot(dx, dz));
-      if (mag > 0.05) {
+      // ease into and out of motion instead of starting / stopping instantly
+      const want = mag > 0.05 ? (axes.run ? RUN : WALK) * mag : 0;
+      const wx = mag > 0.05 ? (dx / Math.hypot(dx, dz)) * want : 0;
+      const wz = mag > 0.05 ? (dz / Math.hypot(dx, dz)) * want : 0;
+      const acc = 1 - Math.exp(-dt * (want > 0 ? 12 : 16));
+      const v = vel.current;
+      v.x += (wx - v.x) * acc;
+      v.z += (wz - v.z) * acc;
+      const vmag = Math.hypot(v.x, v.z);
+      if (vmag < 0.05 && want === 0) {
+        v.x = 0;
+        v.z = 0;
+      }
+      if (vmag > 0.25 || mag > 0.05) {
         moving = true;
         if (game.dancing) game.set({ dancing: false });
-        speed = (axes.run ? RUN : WALK) * mag;
-        const nx = dx / Math.hypot(dx, dz);
-        const nz = dz / Math.hypot(dx, dz);
-        lp.pos.x += nx * speed * dt;
-        lp.pos.z += nz * speed * dt;
+        speed = vmag;
+        lp.pos.x += v.x * dt;
+        lp.pos.z += v.z * dt;
+        const nx = mag > 0.05 ? dx : v.x;
+        const nz = mag > 0.05 ? dz : v.z;
         const targetYaw = Math.atan2(nx, nz);
         let d = targetYaw - lp.yaw;
         d = Math.atan2(Math.sin(d), Math.cos(d));
@@ -319,7 +337,7 @@ export function LocalPlayer({ avatar, name, occupiedRef }: { avatar: AvatarConfi
     group.current.rotation.y = lp.yaw;
 
     // ------------------ camera ------------------
-    const headY = lp.pos.y + (lp.seat ? 1.15 : 1.55);
+    const headY = lp.pos.y + (lp.seat ? 1.0 : 1.3);
     let yawC = lp.camYaw;
     let pitch = lp.camPitch;
     let dist = lp.camDist;
@@ -328,9 +346,9 @@ export function LocalPlayer({ avatar, name, occupiedRef }: { avatar: AvatarConfi
       // cinematic seated framing (cinema / loveseat)
       dist = Math.max(2.2, Math.min(dist, 3.2));
       pitch = Math.min(pitch, 0.35);
-      lookAt = new THREE.Vector3(...lp.seat.look);
+      lookAt = tmp.current.look.set(...lp.seat.look);
       yawC = lp.camYaw;
-    } else lookAt = new THREE.Vector3(lp.pos.x, headY, lp.pos.z);
+    } else lookAt = tmp.current.look.set(lp.pos.x, headY, lp.pos.z);
 
     const ox = Math.sin(yawC) * Math.cos(pitch);
     const oz = Math.cos(yawC) * Math.cos(pitch);
@@ -338,11 +356,11 @@ export function LocalPlayer({ avatar, name, occupiedRef }: { avatar: AvatarConfi
     const effDist = Math.max(0.6, Math.min(dist, hit / Math.max(0.2, Math.cos(pitch))));
     const room = roomAt(lp.pos.x, lp.pos.z);
     const ceil = (room?.height ?? 6) - 0.3;
-    const desired = new THREE.Vector3(lp.pos.x + ox * effDist, Math.min(ceil, headY + Math.sin(pitch) * effDist + 0.2), lp.pos.z + oz * effDist);
+    const desired = tmp.current.desired.set(lp.pos.x + ox * effDist, Math.min(ceil, headY + Math.sin(pitch) * effDist + 0.2), lp.pos.z + oz * effDist);
     const k = initialised.current ? 1 - Math.exp(-dt * 10) : 1;
     initialised.current = true;
     camPos.current.lerp(desired, k);
-    const lookTarget = lp.seat?.look ? lookAt.clone().lerp(new THREE.Vector3(lp.pos.x, headY, lp.pos.z), 0.25) : lookAt;
+    const lookTarget = lp.seat?.look ? tmp.current.lookTarget.copy(lookAt).lerp(tmp.current.head.set(lp.pos.x, headY, lp.pos.z), 0.25) : lookAt;
     camTarget.current.lerp(lookTarget, k);
     camera.position.copy(camPos.current);
     camera.lookAt(camTarget.current);

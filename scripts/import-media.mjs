@@ -2,7 +2,7 @@
 /**
  * Love Museum — import your memories into a museum.
  *
- *   media/photos/   up to 24 photos (jpg / png / webp), shown in file-name order
+ *   media/photos/   up to 44 photos (jpg / png / webp), shown in file-name order
  *   media/videos/   up to 4 videos (mp4 / mov / m4v / webm / mkv / avi)
  *   media/photos/captions.json   optional  { "01.jpg": "Our first date ❤️" }
  *   media/videos/titles.json     optional  { "proposal.mp4": "The proposal" }
@@ -22,11 +22,12 @@ import { readFileSync, readdirSync, statSync, existsSync, mkdtempSync, rmSync } 
 import { join, extname, basename } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 
 const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const BUCKET = 'museum-media';
-const MAX_PHOTOS = 24;
+const MAX_PHOTOS = 44;
 const MAX_VIDEOS = 4;
 const MAX_BYTES = 50 * 1024 * 1024;
 const TARGET_BYTES = 46 * 1024 * 1024;
@@ -173,7 +174,17 @@ const stamp = Date.now();
 
 if (!videosOnly) {
   const dir = join(ROOT, 'media', 'photos');
-  const files = listFiles(dir, ['.jpg', '.jpeg', '.png', '.webp']);
+  // skip exact duplicates (e.g. "photo - Copy.jpeg") so the same memory isn't framed twice
+  const seen = new Set();
+  const files = listFiles(dir, ['.jpg', '.jpeg', '.png', '.webp']).filter((f) => {
+    const h = createHash('md5').update(readFileSync(join(dir, f))).digest('hex');
+    if (seen.has(h)) {
+      console.log(`  (skipping ${f} — same picture as an earlier file)`);
+      return false;
+    }
+    seen.add(h);
+    return true;
+  });
   const captions = readJson(join(dir, 'captions.json'));
   if (files.length > MAX_PHOTOS) console.log(`  (only the first ${MAX_PHOTOS} of ${files.length} photos fit in the gallery)`);
   const stale = [];

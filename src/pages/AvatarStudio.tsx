@@ -2,14 +2,12 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Canvas } from '@react-three/fiber';
 import { ContactShadows, Environment, Lightformer, OrbitControls, Sparkles } from '@react-three/drei';
-import { Camera, Trash2, UserRound } from 'lucide-react';
-import { SelfieAvatarFlow, type SelfieStep } from '../avatar/SelfieAvatarFlow';
-import { deleteModel } from '../avatar/modelStore';
-import { defaultProvider } from '../avatar/providers';
+import { Camera } from 'lucide-react';
+import { SelfieMatch } from '../avatar/SelfieMatch';
 import { WorldHtml } from '../components/WorldHtml';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { ArrowRight, Dices, Minus, Plus, RotateCcw, Save } from 'lucide-react';
-import { Avatar } from '../avatar/Avatar';
+import { Avatar, LABEL_HEIGHT } from '../avatar/Avatar';
 import {
   CLOTH_COLORS, EYE_COLORS, HAIR_COLORS, LIP_COLORS, OPTIONS, SKIN_TONES,
   defaultAvatar, randomAvatar, type Accessory, type AvatarConfig,
@@ -90,7 +88,7 @@ export default function AvatarStudio() {
   const [tab, setTab] = useState<Tab>('body');
   const [anim, setAnim] = useState<AnimName>('idle');
   const [busy, setBusy] = useState(false);
-  const [flow, setFlow] = useState<SelfieStep | null>(null);
+  const [selfie, setSelfie] = useState(false);
   const loaded = useRef(false);
   const controls = useRef<OrbitControlsImpl>(null);
 
@@ -98,7 +96,6 @@ export default function AvatarStudio() {
     if (profile && !loaded.current) {
       loaded.current = true;
       if (profile.avatar) setCfg(profile.avatar);
-      else setFlow('choose');
       setName(profile.display_name);
     }
   }, [profile]);
@@ -112,7 +109,7 @@ export default function AvatarStudio() {
     if (!c) return;
     const cam = c.object;
     const offset = cam.position.clone().sub(c.target);
-    const len = Math.min(6, Math.max(1.2, offset.length() * (dir > 0 ? 0.85 : 1.18)));
+    const len = Math.min(6, Math.max(1.0, offset.length() * (dir > 0 ? 0.85 : 1.18)));
     cam.position.copy(c.target).add(offset.setLength(len));
     c.update();
   };
@@ -154,7 +151,7 @@ export default function AvatarStudio() {
           <p className="mt-2 font-serif text-2xl italic text-cream/80">Choose who walks in</p>
           {inFlow && <p className="mt-1 text-xs uppercase tracking-[0.2em] text-blush/80">Step 2 · {museumId ? 'You are the host' : 'Joining a room'}</p>}
         </div>
-        <Canvas dpr={[1, 2]} camera={{ position: [0, 1.35, 4.2], fov: 35 }}>
+        <Canvas dpr={[1, 2]} camera={{ position: [0, 1.15, 3.6], fov: 35 }}>
           <color attach="background" args={['#1c0d14']} />
           <fog attach="fog" args={['#1c0d14', 6, 14]} />
           <ambientLight intensity={0.45} color="#ffe2ea" />
@@ -166,7 +163,7 @@ export default function AvatarStudio() {
           </Environment>
           <Suspense fallback={null}>
             <Avatar config={cfg} anim={anim} dance={0} shadow={false} />
-            <WorldHtml position={[0, 1.98 * cfg.height, 0]}>
+            <WorldHtml position={[0, LABEL_HEIGHT * cfg.height, 0]}>
               <span className="nametag whitespace-nowrap text-sm">{name.trim() || 'Your name'}</span>
             </WorldHtml>
             <group scale={0.9}>
@@ -179,7 +176,7 @@ export default function AvatarStudio() {
             <circleGeometry args={[8, 64]} />
             <meshStandardMaterial color="#2a1219" roughness={0.4} metalness={0.15} />
           </mesh>
-          <OrbitControls ref={controls} target={[0, 1.0, 0]} enablePan={false} minDistance={1.2} maxDistance={6} minPolarAngle={0.3} maxPolarAngle={1.62} />
+          <OrbitControls ref={controls} target={[0, 0.85, 0]} enablePan={false} minDistance={1.0} maxDistance={6} minPolarAngle={0.3} maxPolarAngle={1.62} />
         </Canvas>
         <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full glass-strong p-1.5">
           {(['idle', 'walk', 'dance', 'wave', 'sit'] as AnimName[]).map((a) => (
@@ -203,7 +200,20 @@ export default function AvatarStudio() {
         <div className="border-b border-white/10 p-5">
           <h4 className="mb-2 text-xs uppercase tracking-[0.18em] text-blush/80">Your name</h4>
           <Input maxLength={40} value={name} onChange={(e) => setName(e.target.value)} placeholder="Shown above your avatar" />
-          <div className={`mt-4 flex gap-1 overflow-x-auto ${cfg.model ? 'hidden' : ''}`}>
+          {
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {(['male', 'female'] as const).map((g) => (
+                <button
+                  key={g}
+                  onClick={() => cfg.gender !== g && setCfg((c) => ({ ...defaultAvatar(g), skin: c.skin, eyeColor: c.eyeColor }))}
+                  className={`rounded-2xl border py-3 text-base font-medium transition ${cfg.gender === g ? 'border-rose bg-rose/20 text-cream' : 'border-white/12 bg-white/5 text-cream/70 hover:border-blush/40'}`}
+                >
+                  {g === 'male' ? '👦 Boy' : '👧 Girl'}
+                </button>
+              ))}
+            </div>
+          }
+          <div className="mt-4 flex gap-1 overflow-x-auto">
             {TABS.map((t) => (
               <button
                 key={t.id}
@@ -217,56 +227,15 @@ export default function AvatarStudio() {
         </div>
 
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-5">
-          {cfg.model ? (
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-gold/40 bg-gradient-to-br from-[#3a1622] to-transparent p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-gold">Your selfie avatar</p>
-                <p className="mt-1 text-sm text-cream/75">Made from your photo. Hair, outfit, shoes and glasses are changed in the avatar studio so your face stays exactly the same.</p>
-              </div>
-              <Button className="w-full" onClick={() => setFlow('editor')}>
-                <Camera className="h-4 w-4" /> Change hair, clothes & accessories
-              </Button>
-              <Button className="w-full" variant="ghost" onClick={() => setCfg((c) => ({ ...c, model: null }))}>
-                <UserRound className="h-4 w-4" /> Use a manual avatar instead
-              </Button>
-              <Button
-                className="w-full"
-                variant="danger"
-                onClick={async () => {
-                  if (!user || !cfg.model || !confirm('Delete your selfie avatar? This removes the 3D model from Love Museum.')) return;
-                  try {
-                    await deleteModel(user.id, cfg.model, defaultProvider.deleteRemote);
-                    const nextCfg = { ...cfg, model: null };
-                    setCfg(nextCfg);
-                    await saveMyProfile(user.id, { avatar: nextCfg });
-                    await refreshProfile();
-                    toast('Selfie avatar deleted');
-                  } catch (e) {
-                    toast(errMsg(e), 'error');
-                  }
-                }}
-              >
-                <Trash2 className="h-4 w-4" /> Delete my selfie avatar
-              </Button>
-            </div>
-          ) : (
-            <button onClick={() => setFlow('consent')} className="flex w-full items-center gap-3 rounded-2xl border border-gold/40 bg-gold/10 px-4 py-3 text-left text-sm hover:bg-gold/15">
-              <Camera className="h-5 w-5 shrink-0 text-gold" />
-              <span>
-                <b className="block text-cream">CREATE AVATAR USING SELFIE</b>
-                <span className="text-cream/60">Get a realistic 3D you, made from your photo</span>
-              </span>
-            </button>
-          )}
-          {!cfg.model && tab === 'body' && (
+          <button onClick={() => setSelfie(true)} className="flex w-full items-center gap-3 rounded-2xl border border-gold/40 bg-gold/10 px-4 py-3 text-left text-sm hover:bg-gold/15">
+            <Camera className="h-5 w-5 shrink-0 text-gold" />
+            <span>
+              <b className="block text-cream">TAKE A SELFIE</b>
+              <span className="text-cream/60">Match your skin, hair and eye colour from a photo</span>
+            </span>
+          </button>
+          {tab === 'body' && (
             <>
-              <Section title="Base">
-                <Chips
-                  value={cfg.gender}
-                  options={OPTIONS.gender}
-                  onChange={(g) => setCfg((c) => ({ ...defaultAvatar(g), skin: c.skin, eyeColor: c.eyeColor, hairColor: c.hairColor }))}
-                />
-              </Section>
               <Section title="Skin tone">
                 <Swatches value={cfg.skin} colors={SKIN_TONES} onChange={(v) => set('skin', v)} />
               </Section>
@@ -278,7 +247,7 @@ export default function AvatarStudio() {
               </Section>
             </>
           )}
-          {!cfg.model && tab === 'face' && (
+          {tab === 'face' && (
             <>
               <Section title="Face shape">
                 <Chips value={cfg.faceShape} options={OPTIONS.faceShape} onChange={(v) => set('faceShape', v)} />
@@ -301,15 +270,17 @@ export default function AvatarStudio() {
               <Section title="Lips">
                 <Swatches value={cfg.lipColor} colors={LIP_COLORS} onChange={(v) => set('lipColor', v)} />
               </Section>
-              <Section title="Facial hair">
-                <Chips value={cfg.facialHair} options={OPTIONS.facialHair} onChange={(v) => set('facialHair', v)} />
-              </Section>
+              {cfg.gender === 'male' && (
+                <Section title="Facial hair">
+                  <Chips value={cfg.facialHair} options={OPTIONS.facialHair} onChange={(v) => set('facialHair', v)} />
+                </Section>
+              )}
               <Section title="Blush">
                 <Chips value={cfg.blush ? 'on' : 'off'} options={[{ id: 'on', label: 'Rosy cheeks' }, { id: 'off', label: 'None' }]} onChange={(v) => set('blush', v === 'on')} />
               </Section>
             </>
           )}
-          {!cfg.model && tab === 'hair' && (
+          {tab === 'hair' && (
             <>
               <Section title="Hairstyle">
                 <Chips value={cfg.hair} options={OPTIONS.hair} onChange={(v) => set('hair', v)} />
@@ -319,7 +290,7 @@ export default function AvatarStudio() {
               </Section>
             </>
           )}
-          {!cfg.model && tab === 'outfit' && (
+          {tab === 'outfit' && (
             <>
               <Section title="Top">
                 <Chips value={cfg.top} options={OPTIONS.top} onChange={(v) => set('top', v)} />
@@ -342,7 +313,7 @@ export default function AvatarStudio() {
               )}
             </>
           )}
-          {!cfg.model && tab === 'shoes' && (
+          {tab === 'shoes' && (
             <>
               <Section title="Shoes">
                 <Chips value={cfg.shoes} options={OPTIONS.shoes} onChange={(v) => set('shoes', v)} />
@@ -352,7 +323,7 @@ export default function AvatarStudio() {
               </Section>
             </>
           )}
-          {!cfg.model && tab === 'extras' && (
+          {tab === 'extras' && (
             <Section title="Accessories">
               <div className="flex flex-wrap gap-2">
                 {OPTIONS.accessories.map((a) => (
@@ -375,7 +346,7 @@ export default function AvatarStudio() {
           <Button variant="ghost" size="sm" onClick={() => setCfg(defaultAvatar(cfg.gender))}>
             <RotateCcw className="h-4 w-4" /> RESET
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setCfg(randomAvatar())}>
+          <Button variant="ghost" size="sm" onClick={() => setCfg(randomAvatar(cfg.gender))}>
             <Dices className="h-4 w-4" /> RANDOMIZE
           </Button>
           <div className="flex-1" />
@@ -389,17 +360,17 @@ export default function AvatarStudio() {
           </Button>
         </div>
       </div>
-      {flow && user && (
-        <SelfieAvatarFlow
-          userId={user.id}
-          start={flow}
-          editAvatarId={flow === 'editor' ? cfg.model?.avatarId : undefined}
-          onClose={profile?.avatar ? () => setFlow(null) : undefined}
-          onManual={() => setFlow(null)}
-          onDone={(ref) => {
-            setCfg((c) => ({ ...c, model: ref }));
-            setFlow(null);
-            toast('Your personalised avatar is ready ❤️ Press SAVE & CONTINUE to keep it.', 'love');
+      {selfie && (
+        <SelfieMatch
+          gender={cfg.gender}
+          onClose={() => setSelfie(false)}
+          onApply={(l) => {
+            setCfg((c) => {
+              const base = c.gender === l.gender ? c : defaultAvatar(l.gender);
+              return { ...base, skin: l.skin, hairColor: l.hairColor ?? base.hairColor, eyeColor: l.eyeColor ?? base.eyeColor };
+            });
+            setSelfie(false);
+            toast('Colours matched from your selfie ❤️ Now pick your hairstyle and outfit.', 'love');
           }}
         />
       )}

@@ -179,7 +179,7 @@ export function SelfieCapture({ onSubmit, onCancel, busy }: { onSubmit: (p: Self
           <div className="flex gap-2">
             {(['female', 'male'] as const).map((b) => (
               <button key={b} onClick={() => setBodyType(b)} className={`flex-1 rounded-full border px-3 py-1.5 text-sm ${bodyType === b ? 'border-rose bg-rose/20' : 'border-white/12 bg-white/5'}`}>
-                {b === 'female' ? 'Feminine' : 'Masculine'}
+                {b === 'female' ? 'Girl' : 'Boy'}
               </button>
             ))}
           </div>

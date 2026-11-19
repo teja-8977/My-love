@@ -12,7 +12,7 @@ import { debugEnabled, interact, localPlayer } from './player/LocalPlayer';
 import { useCinema } from './audio/CinemaController';
 import { useMusic } from './audio/MusicEngine';
 import type { Interactable } from './layout';
-import { PARTY_WORLD } from './layout';
+import { PARTY_WORLD, PHOTO_SLOTS, roomAt } from './layout';
 
 /**
  * Everything inside a running tour: 3D world, HUD, keyboard and realtime event wiring.
@@ -39,6 +39,8 @@ function JourneyTitle() {
 export function TourExperience({ session, avatar, name, actions, banner }: { session: TourSession; avatar: AvatarConfig; name: string; actions: TourActions; banner?: React.ReactNode }) {
   const occupied = useRef(new Set<string>());
   const { net, music, cinema } = session;
+  const photosRef = useRef(session.photos);
+  photosRef.current = session.photos;
 
   // automated-test hooks (only in a browser that opted in with ?debug / localStorage lm-debug=1)
   useEffect(() => {
@@ -99,6 +101,29 @@ export function TourExperience({ session, avatar, name, actions, banner }: { ses
       g.set({ dancing: !g.dancing });
     };
 
+    /** P: show the photo you're standing at (or the first one) full screen; P again closes it */
+    const togglePhotos = () => {
+      const g = useGame.getState();
+      if (g.overlay?.type === 'photo') return g.setOverlay(null);
+      const have = new Set(photosRef.current.map((p) => p.slot));
+      if (!have.size) return g.notify('No photos in the gallery yet ❤️');
+      let slot = [...have].sort((a, b) => a - b)[0];
+      const n = localPlayer.nearest;
+      if (n?.kind === 'photo' && have.has(n.slot)) slot = n.slot;
+      else if (roomAt(localPlayer.pos.x, localPlayer.pos.z)?.id === 'gallery') {
+        let best = Infinity;
+        for (const p of PHOTO_SLOTS) {
+          const d = Math.hypot(p.x - localPlayer.pos.x, p.z - localPlayer.pos.z);
+          if (have.has(p.slot) && d < best) {
+            best = d;
+            slot = p.slot;
+          }
+        }
+      }
+      clearInput();
+      g.setOverlay({ type: 'photo', slot });
+    };
+
     const down = (e: KeyboardEvent) => {
       music.unlock();
       const g = useGame.getState();
@@ -107,6 +132,11 @@ export function TourExperience({ session, avatar, name, actions, banner }: { ses
 
       if (e.code === 'Escape') {
         if (g.overlay) g.setOverlay(null);
+        return;
+      }
+      if (e.code === 'KeyP' && !e.repeat && (!g.overlay || g.overlay.type === 'photo' || g.overlay.type === 'cinema' || g.overlay.type === 'music')) {
+        e.preventDefault();
+        togglePhotos();
         return;
       }
       const passive = g.overlay?.type === 'cinema' || g.overlay?.type === 'music';
@@ -148,9 +178,18 @@ export function TourExperience({ session, avatar, name, actions, banner }: { ses
     window.addEventListener('pointerdown', click);
     (window as unknown as { __lmTouch?: (a: string) => void }).__lmTouch = (a: string) => {
       const g = useGame.getState();
-      if (a === 'E') interact(occupied.current, onInteract);
-      else if (a === 'F') toggleDance();
+      music.unlock();
+      if (a === 'E') {
+        if (g.overlay?.type === 'cinema' || g.overlay?.type === 'music') g.setOverlay(null);
+        else interact(occupied.current, onInteract);
+      } else if (a === 'F') toggleDance();
       else if (a === 'chat') g.set({ chatOpen: true });
+      else if (a === 'P') togglePhotos();
+      else if (a === 'help') g.setOverlay({ type: 'help' });
+      else if (a.startsWith('dance:')) {
+        const n = Number(a.slice(6));
+        if (n >= 0 && n < DANCES.length && !g.seated) g.set({ danceStyle: n, dancing: true });
+      }
     };
     return () => {
       window.removeEventListener('keydown', down);

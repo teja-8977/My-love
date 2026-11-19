@@ -187,3 +187,11 @@ input[type='range'] { accent-color: #e8577a; }
   to { opacity: 1; transform: none; filter: none; }
 }
 .letter-line { animation: letter-line 0.9s ease both; }
+
+/* wrong password on the letter lock */
+@keyframes lock-shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-10px); }
+  40%, 80% { transform: translateX(10px); }
+}
+.lock-shake { animation: lock-shake 0.45s ease-in-out; }

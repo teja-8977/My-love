@@ -59,5 +59,5 @@ export interface Profile {
   avatar: AvatarConfig | null;
 }
 
-export const PHOTO_SLOTS = 24;
+export const PHOTO_SLOTS = 44;
 export const VIDEO_SLOTS = 4;

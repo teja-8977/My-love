@@ -126,6 +126,8 @@ const KEYS: [string, string][] = [
   ['Space', 'Jump'],
   ['E', 'Interact · Sit · Stand'],
   ['F', 'Dance (1–4 change style)'],
+  ['P', 'Photos full screen (← → to browse)'],
+  ['H', 'Help'],
   ['Enter', 'Chat'],
   ['Esc', 'Close'],
   ['Drag / Wheel', 'Look around · Zoom'],
