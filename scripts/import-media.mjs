@@ -8,6 +8,8 @@
  *   media/videos/titles.json     optional  { "proposal.mp4": "The proposal" }
  *
  * Usage:
+ *   npm run import-media -- --shared     → the shared memories, shown in EVERY museum (also rooms created
+ *                                          later; needs supabase/migrations/0007_shared_memories.sql)
  *   npm run import-media                 → imports into your most recently created museum
  *   npm run import-media -- 9C228D       → imports into the museum with that room code
  *   npm run import-media -- 9C228D --photos-only | --videos-only
@@ -159,17 +161,42 @@ const code = args.find((a) => !a.startsWith('--'));
 const photosOnly = args.includes('--photos-only');
 const videosOnly = args.includes('--videos-only');
 
-const museums = code
-  ? await rest(`museums?select=id,name,room_code,invite_code&or=(room_code.eq.${encodeURIComponent(code.toUpperCase())},invite_code.eq.${encodeURIComponent(code)})`)
-  : await rest('museums?select=id,name,room_code,invite_code&order=created_at.desc&limit=1');
-const museum = museums?.[0];
-if (!museum) {
-  console.error(code ? `✗ No museum with room code "${code}".` : '✗ No museums yet — create your room in the app first.');
-  process.exit(1);
+const shared = args.includes('--shared');
+
+let museum = null;
+if (shared) {
+  try {
+    await rest('shared_media?select=slot&limit=1');
+  } catch {
+    console.error('✗ The shared library is not set up yet. Run supabase/migrations/0007_shared_memories.sql in the Supabase SQL Editor first.');
+    process.exit(1);
+  }
+  console.log('\n❤ Importing the shared memories (shown in every museum)\n');
+} else {
+  const museums = code
+    ? await rest(`museums?select=id,name,room_code,invite_code&or=(room_code.eq.${encodeURIComponent(code.toUpperCase())},invite_code.eq.${encodeURIComponent(code)})`)
+    : await rest('museums?select=id,name,room_code,invite_code&order=created_at.desc&limit=1');
+  museum = museums?.[0];
+  if (!museum) {
+    console.error(code ? `✗ No museum with room code "${code}".` : '✗ No museums yet — create your room in the app first.');
+    process.exit(1);
+  }
+  console.log(`\n❤ Importing into "${museum.name}" (room ${museum.room_code})\n`);
 }
-console.log(`\n❤ Importing into "${museum.name}" (room ${museum.room_code})\n`);
-const existing = await rest(`museum_media?select=kind,slot,storage_path&museum_id=eq.${museum.id}`);
-const oldPath = (kind, slot) => existing.find((m) => m.kind === kind && m.slot === slot)?.storage_path;
+const PREFIX = shared ? 'shared' : museum.id;
+const existing = shared
+  ? await rest('shared_media?select=kind,slot,storage_path')
+  : await rest(`museum_media?select=kind,slot,storage_path&museum_id=eq.${museum.id}`);
+// files in shared/ are used by every museum: only a --shared import may replace them
+const oldPath = (kind, slot) => {
+  const p = existing.find((m) => m.kind === kind && m.slot === slot)?.storage_path;
+  return p && (shared || !p.startsWith('shared/')) ? p : undefined;
+};
+/** write one library row: into the shared library, or into the chosen museum */
+async function save(row) {
+  if (!shared) return upsertMedia({ museum_id: museum.id, ...row });
+  await rest('shared_media?on_conflict=kind,slot', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(row) });
+}
 const stamp = Date.now();
 
 if (!videosOnly) {
@@ -192,9 +219,9 @@ if (!videosOnly) {
     const buf = readFileSync(join(dir, f));
     const ext = extname(f).toLowerCase();
     const size = imageSize(buf);
-    const path = `${museum.id}/photos/${slot}-${stamp}${ext === '.jpeg' ? '.jpg' : ext}`;
+    const path = `${PREFIX}/photos/${slot}-${stamp}${ext === '.jpeg' ? '.jpg' : ext}`;
     await upload(path, buf, MIME[ext]);
-    await upsertMedia({ museum_id: museum.id, kind: 'photo', slot, storage_path: path, caption: String(captions[f] ?? '').slice(0, 120), width: size?.w ?? null, height: size?.h ?? null });
+    await save({ kind: 'photo', slot, storage_path: path, caption: String(captions[f] ?? '').slice(0, 120), width: size?.w ?? null, height: size?.h ?? null });
     const prev = oldPath('photo', slot);
     if (prev && prev !== path) stale.push(prev);
     console.log(`  ✓ photo ${String(slot + 1).padStart(2)}  ${f}${size ? `  ${size.w}×${size.h}` : ''}`);
@@ -219,9 +246,9 @@ if (!photosOnly) {
     try {
       const buf = readFileSync(file);
       if (buf.length > MAX_BYTES) throw new Error(`still ${(buf.length / 1048576).toFixed(1)} MB after compression — trim the video and try again`);
-      const path = `${museum.id}/videos/${slot}-${stamp}.mp4`;
+      const path = `${PREFIX}/videos/${slot}-${stamp}.mp4`;
       await upload(path, buf, 'video/mp4');
-      await upsertMedia({ museum_id: museum.id, kind: 'video', slot, storage_path: path, caption: String(titles[f] ?? basename(f, extname(f))).slice(0, 80), width: null, height: null });
+      await save({ kind: 'video', slot, storage_path: path, caption: String(titles[f] ?? basename(f, extname(f))).slice(0, 80), width: null, height: null });
       const prev = oldPath('video', slot);
       if (prev && prev !== path) stale.push(prev);
       console.log(`    ✓ uploaded (${(buf.length / 1048576).toFixed(1)} MB)`);
@@ -231,6 +258,22 @@ if (!photosOnly) {
   }
   await removeObjects(stale);
   if (!files.length) console.log('  (no videos in media/videos)');
+}
+
+if (shared) {
+  // put the shared library into every museum that already exists (new ones get it automatically)
+  const lib = await rest('shared_media?select=kind,slot,storage_path,caption,width,height');
+  const all = await rest('museums?select=id,name,room_code');
+  for (const m of all) {
+    if (lib.length) {
+      await rest('museum_media?on_conflict=museum_id,kind,slot', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify(lib.map((r) => ({ museum_id: m.id, ...r }))),
+      });
+    }
+    console.log(`  ✓ room ${m.room_code}  ${m.name}`);
+  }
 }
 
 console.log('\nDone. Open the museum (or refresh it) to see your memories ❤\n');
