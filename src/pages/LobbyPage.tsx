@@ -9,6 +9,7 @@ import { inviteUrl, regenerateInvite, setMemberStatus, updateMuseum, updateMyMem
 import type { Member } from '../lib/types';
 import { Button, Card, FullscreenLoader, Logo, PageShell, errMsg, toast } from '../components/ui';
 import InviteCard from '../components/InviteCard';
+import { TourCodeLock } from '../components/TourCodeLock';
 import { defaultAvatar } from '../avatar/config';
 import type { EntranceMode, EntrancePerson } from '../entrance/EntranceScene';
 import { countdownTick, doorsChime, unlockSfx } from '../entrance/sfx';
@@ -115,6 +116,7 @@ export default function LobbyPage() {
     if (count !== null && phase === 'waiting') setPhase('countdown');
   }, [count, phase]);
 
+  const [askCode, setAskCode] = useState(false);
   const startMuseum = async () => {
     if (!museum || running.current) return;
     unlockSfx();
@@ -328,9 +330,20 @@ export default function LobbyPage() {
                   <Play className="h-5 w-5 fill-white" /> Return to the museum
                 </Button>
               ) : (
-                <Button size="lg" variant="gold" onClick={startMuseum} className="px-8 tracking-[0.15em] sm:px-12 sm:text-lg">
-                  START MUSEUM ❤️
-                </Button>
+                <>
+                  <Button size="lg" variant="gold" onClick={() => setAskCode(true)} className="px-8 tracking-[0.15em] sm:px-12 sm:text-lg">
+                    START MUSEUM ❤️
+                  </Button>
+                  {askCode && (
+                    <TourCodeLock
+                      onClose={() => setAskCode(false)}
+                      onUnlock={() => {
+                        setAskCode(false);
+                        startMuseum();
+                      }}
+                    />
+                  )}
+                </>
               )}
             </div>
           )}

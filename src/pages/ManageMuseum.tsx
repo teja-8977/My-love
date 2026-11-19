@@ -11,6 +11,7 @@ import { fileExt, preparePhoto } from '../lib/image';
 import { Button, Card, Field, Input, Logo, PageShell, Spinner, Textarea, errMsg, toast } from '../components/ui';
 import InviteCard from '../components/InviteCard';
 import ParticipantsList from '../components/ParticipantsList';
+import { TourCodeLock } from '../components/TourCodeLock';
 
 type Tab = 'overview' | 'photos' | 'videos' | 'people' | 'invite';
 
@@ -24,6 +25,7 @@ export default function ManageMuseum() {
   const { museum, members, reload, setMuseum } = useMuseumLive(id);
   const [tab, setTab] = useState<Tab>('overview');
   const [media, setMedia] = useState<ResolvedMedia[] | null>(null);
+  const [askCode, setAskCode] = useState(false);
 
   const loadMedia = async () => {
     if (!id) return;
@@ -114,9 +116,18 @@ export default function ManageMuseum() {
               <Button variant="ghost" onClick={() => nav(`/museum/${museum.id}/lobby`)}>
                 <Users className="h-4 w-4" /> Lobby
               </Button>
-              <Button variant="gold" onClick={() => setStatus('live')}>
+              <Button variant="gold" onClick={() => setAskCode(true)}>
                 <Play className="h-4 w-4 fill-current" /> START TOUR
               </Button>
+              {askCode && (
+                <TourCodeLock
+                  onClose={() => setAskCode(false)}
+                  onUnlock={() => {
+                    setAskCode(false);
+                    setStatus('live');
+                  }}
+                />
+              )}
             </>
           )}
         </div>

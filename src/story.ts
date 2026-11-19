@@ -49,3 +49,6 @@ export const LETTER_LOCK = {
   /** shown after a few wrong tries */
   extraHint: 'It was a spring day in March 🌸',
 };
+
+/** The host must type this code to start the tour (START MUSEUM / START TOUR). */
+export const TOUR_CODE = '1908';
