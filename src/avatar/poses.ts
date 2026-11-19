@@ -70,80 +70,106 @@ export function targetPose(out: Pose, anim: AnimName, t: number, opts: { dance?:
 
   switch (anim) {
     case 'idle': {
-      const b = s(t * 1.6);
-      out.hipY = b * 0.006;
-      out.spineX = 0.02 + b * 0.012;
-      out.headX = -0.02 + s(t * 0.7) * 0.03;
-      out.headY = s(t * 0.33) * 0.12;
-      out.lShZ = 0.1 + b * 0.015;
-      out.rShZ = -0.1 - b * 0.015;
-      out.lEl = -0.15;
-      out.rEl = -0.15;
+      // breathing, a soft side-to-side sway and the occasional curious head tilt
+      const b = s(t * 1.8);
+      const sway = s(t * 0.9);
+      out.hipY = b * 0.008;
+      out.hipX = sway * 0.012;
+      out.hipRotZ = sway * 0.02;
+      out.spineX = 0.02 + b * 0.015;
+      out.spineZ = -sway * 0.03;
+      out.headX = -0.03 + s(t * 0.7) * 0.04;
+      out.headY = s(t * 0.33) * 0.18;
+      out.headZ = Math.max(0, s(t * 0.21)) ** 4 * 0.18 + sway * 0.03;
+      out.lShZ = 0.12 + b * 0.02;
+      out.rShZ = -0.12 - b * 0.02;
+      out.lShX = s(t * 0.9 + 1) * 0.04;
+      out.rShX = -s(t * 0.9 + 1) * 0.04;
+      out.lEl = -0.2;
+      out.rEl = -0.2;
       break;
     }
     case 'walk':
     case 'run': {
+      // short chibi legs take quicker steps (so the feet don't slide) with a happy bounce
       const run = anim === 'run';
-      const f = run ? 10.5 : 6.6 * Math.max(0.6, Math.min(1.3, opts.speed ?? 1));
+      const f = run ? 14 : 9.5 * Math.max(0.6, Math.min(1.3, opts.speed ?? 1));
       const p = t * f;
-      const amp = run ? 0.85 : 0.5;
+      const amp = run ? 0.9 : 0.6;
       out.lHipX = -s(p) * amp;
       out.rHipX = s(p) * amp;
-      out.lKnee = Math.max(0, s(p + 1.4)) * (run ? 1.5 : 0.75) + 0.05;
-      out.rKnee = Math.max(0, -s(p + 1.4)) * (run ? 1.5 : 0.75) + 0.05;
-      out.lShX = s(p) * (run ? 0.9 : 0.45);
-      out.rShX = -s(p) * (run ? 0.9 : 0.45);
-      out.lEl = run ? -1.25 : -0.25 - Math.max(0, -s(p)) * 0.3;
-      out.rEl = run ? -1.25 : -0.25 - Math.max(0, s(p)) * 0.3;
-      out.lShZ = 0.12;
-      out.rShZ = -0.12;
-      out.hipY = -Math.abs(c(p)) * (run ? 0.05 : 0.025) + (run ? 0.0 : 0.012);
-      out.hipRotY = s(p) * (run ? 0.12 : 0.08);
-      out.spineY = -s(p) * (run ? 0.18 : 0.1);
-      out.spineX = run ? 0.22 : 0.05;
-      out.headX = run ? -0.12 : -0.03;
+      out.lKnee = Math.max(0, s(p + 1.4)) * (run ? 1.6 : 0.9) + 0.06;
+      out.rKnee = Math.max(0, -s(p + 1.4)) * (run ? 1.6 : 0.9) + 0.06;
+      out.lShX = s(p) * (run ? 1.0 : 0.6);
+      out.rShX = -s(p) * (run ? 1.0 : 0.6);
+      out.lEl = run ? -1.3 : -0.3 - Math.max(0, -s(p)) * 0.4;
+      out.rEl = run ? -1.3 : -0.3 - Math.max(0, s(p)) * 0.4;
+      out.lShZ = 0.16;
+      out.rShZ = -0.16;
+      const bounce = Math.abs(c(p));
+      out.hipY = -bounce * (run ? 0.06 : 0.035) + (run ? 0.0 : 0.018);
+      out.hipX = s(p) * 0.012;
+      out.hipRotY = s(p) * (run ? 0.14 : 0.1);
+      out.hipRotZ = -s(p) * 0.04;
+      out.spineY = -s(p) * (run ? 0.2 : 0.12);
+      out.spineX = run ? 0.24 : 0.06;
+      // the big head bobs a little behind the body
+      out.headX = (run ? -0.14 : -0.04) + bounce * 0.05;
+      out.headZ = s(p) * 0.06;
       break;
     }
     case 'jump': {
-      out.lHipX = -0.65;
-      out.rHipX = -0.25;
-      out.lKnee = 1.1;
-      out.rKnee = 0.6;
-      out.lShZ = 0.9;
-      out.rShZ = -0.9;
+      out.lHipX = -0.75;
+      out.rHipX = -0.3;
+      out.lKnee = 1.2;
+      out.rKnee = 0.7;
+      out.lShZ = 1.4;
+      out.rShZ = -1.4;
       out.lShX = -0.3;
       out.rShX = -0.3;
-      out.lEl = -0.5;
-      out.rEl = -0.5;
-      out.spineX = 0.08;
+      out.lEl = -0.4;
+      out.rEl = -0.4;
+      out.spineX = 0.06;
+      out.headX = -0.12;
       break;
     }
     case 'sit': {
-      // pelvis drops onto the seat (~0.47m)
+      // pelvis drops onto the seat (~0.47m); short legs dangle and swing
       out.hipY = 0.47 - opts.hipHeight;
       out.lHipX = -1.5;
       out.rHipX = -1.5;
       out.lHipZ = 0.06;
       out.rHipZ = -0.06;
-      out.lKnee = 1.5;
-      out.rKnee = 1.5;
-      out.spineX = -0.06 + s(t * 1.3) * 0.01;
-      out.lShX = -0.35;
-      out.rShX = -0.35;
-      out.lShZ = 0.12;
-      out.rShZ = -0.12;
-      out.lEl = -0.9;
-      out.rEl = -0.9;
+      out.lKnee = 1.35 + s(t * 2.2) * 0.18;
+      out.rKnee = 1.35 - s(t * 2.2) * 0.18;
+      out.spineX = -0.06 + s(t * 1.3) * 0.012;
+      out.lShX = -0.45;
+      out.rShX = -0.45;
+      out.lShZ = 0.14;
+      out.rShZ = -0.14;
+      out.lEl = -0.8;
+      out.rEl = -0.8;
       out.headX = 0.02 + s(t * 0.5) * 0.03;
       out.headY = s(t * 0.27) * 0.15;
+      out.headZ = s(t * 0.4) * 0.06;
       break;
     }
     case 'wave': {
-      out.rShZ = -2.4;
-      out.rShX = -0.2;
-      out.rEl = -0.4 + s(t * 9) * 0.35;
-      out.headZ = 0.08;
-      out.spineZ = 0.04;
+      const b = Math.abs(s(t * 4.5));
+      out.rShZ = -2.5;
+      out.rShX = -0.15;
+      out.rShY = s(t * 9) * 0.25;
+      out.rEl = -0.5 + s(t * 9) * 0.35;
+      out.lShZ = 0.15;
+      out.lEl = -0.3;
+      out.headZ = 0.14;
+      out.headX = -0.06;
+      out.spineZ = 0.06;
+      out.hipY = -b * 0.02;
+      out.lKnee = b * 0.12;
+      out.rKnee = b * 0.12;
+      out.lHipX = -b * 0.06;
+      out.rHipX = -b * 0.06;
       break;
     }
     case 'dance': {
