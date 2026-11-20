@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "preview": "vite preview",
-    "import-media": "node scripts/import-media.mjs"
+    "import-media": "node scripts/import-media.mjs",
+    "fill-rooms": "node scripts/fill-rooms.mjs"
   },
   "dependencies": {
     "@avaturn/sdk": "^1.1.4",

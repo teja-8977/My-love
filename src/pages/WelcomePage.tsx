@@ -150,9 +150,20 @@ export default function WelcomePage() {
     if (guideDone) setMode('focus');
   }, [guideDone]);
 
-  const startCreate = () => {
+  const startCreate = async () => {
     if (!isSupabaseConfigured) return nav('/setup');
-    setPanel(user ? 'create' : 'auth-create');
+    if (!user) return setPanel('auth-create');
+    // already have a room on this device? open it instead of making a new, empty one
+    try {
+      const mine = await listMyMuseums(user.id);
+      if (mine[0]) {
+        toast('Opening your museum ❤️', 'love');
+        return nav(mine[0].status === 'live' ? `/museum/${mine[0].id}/tour` : `/museum/${mine[0].id}/lobby`);
+      }
+    } catch {
+      /* fall through to creating one */
+    }
+    setPanel('create');
   };
   const startJoin = () => {
     if (!isSupabaseConfigured) return nav('/setup');
