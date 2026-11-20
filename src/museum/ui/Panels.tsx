@@ -127,6 +127,7 @@ const KEYS: [string, string][] = [
   ['E', 'Interact · Sit · Stand'],
   ['F', 'Dance (1–4 change style)'],
   ['P', 'Photos full screen (← → to browse)'],
+  ['M', 'Microphone on / off (voice chat)'],
   ['H', 'Help'],
   ['Enter', 'Chat'],
   ['Esc', 'Close'],

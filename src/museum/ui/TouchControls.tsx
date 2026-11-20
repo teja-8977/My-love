@@ -3,7 +3,7 @@ import { input } from '../player/input';
 import { useGame } from '../store';
 import { DANCES } from '../../avatar/poses';
 
-export type TouchAction = 'E' | 'F' | 'chat' | 'P' | 'help' | `dance:${number}`;
+export type TouchAction = 'E' | 'F' | 'chat' | 'P' | 'help' | 'mic' | `dance:${number}`;
 
 /** True on phones / tablets, and as soon as anyone touches the screen (some phones report a mouse). */
 function useTouchDevice() {

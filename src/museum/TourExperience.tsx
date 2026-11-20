@@ -13,6 +13,7 @@ import { useCinema } from './audio/CinemaController';
 import { useMusic } from './audio/MusicEngine';
 import type { Interactable } from './layout';
 import { PARTY_WORLD, PHOTO_SLOTS, roomAt } from './layout';
+import { VoiceChat, useVoice } from './net/VoiceChat';
 
 /**
  * Everything inside a running tour: 3D world, HUD, keyboard and realtime event wiring.
@@ -54,6 +55,12 @@ export function TourExperience({ session, avatar, name, actions, banner }: { ses
       delete w.__lmTour;
     };
   }, [cinema, net]);
+
+  // voice chat (everyone hears everyone; your mic starts off)
+  useEffect(() => {
+    const v = new VoiceChat(net);
+    return () => v.dispose();
+  }, [net]);
 
   // seats taken by other people
   useEffect(() => {
@@ -160,6 +167,7 @@ export function TourExperience({ session, avatar, name, actions, banner }: { ses
         return;
       }
       if (e.code === 'KeyH') return g.setOverlay({ type: 'help' });
+      if (e.code === 'KeyM' && !e.repeat) return useVoice.getState().toggle();
       if (e.code === 'Space') {
         e.preventDefault();
         if (!e.repeat) input.jumpQueued = true;
@@ -186,6 +194,7 @@ export function TourExperience({ session, avatar, name, actions, banner }: { ses
       else if (a === 'chat') g.set({ chatOpen: true });
       else if (a === 'P') togglePhotos();
       else if (a === 'help') g.setOverlay({ type: 'help' });
+      else if (a === 'mic') useVoice.getState().toggle();
       else if (a.startsWith('dance:')) {
         const n = Number(a.slice(6));
         if (n >= 0 && n < DANCES.length && !g.seated) g.set({ danceStyle: n, dancing: true });

@@ -1,4 +1,5 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import type { RtcSignal } from './VoiceChat';
 import * as THREE from 'three';
 import { supabase } from '../../lib/supabase';
 import { sanitizeAvatar, type AvatarConfig } from '../../avatar/config';
@@ -57,6 +58,7 @@ type Handlers = {
   kick: (userId: string) => void;
   join: (p: PlayerInfo) => void;
   leave: (p: PlayerInfo) => void;
+  rtc: (s: RtcSignal) => void;
 };
 
 export interface Me {
@@ -124,6 +126,10 @@ export class MuseumNet {
     ch.on('broadcast', { event: 'music-req' }, ({ payload }) => this.emit('musicRequest', (payload as { from: string }).from));
     ch.on('broadcast', { event: 'party' }, ({ payload }) => this.emit('party', payload as { x: number; z: number }));
     ch.on('broadcast', { event: 'host' }, ({ payload }) => this.emit('host', payload as HostEvent));
+    ch.on('broadcast', { event: 'rtc' }, ({ payload }) => {
+      const p = payload as RtcSignal;
+      if (p && typeof p.from === 'string' && (p.to === this.me.id || p.to === '*')) this.emit('rtc', p);
+    });
     ch.on('broadcast', { event: 'kick' }, ({ payload }) => this.emit('kick', (payload as { id: string }).id));
 
     await new Promise<void>((resolve) => {
@@ -247,6 +253,10 @@ export class MuseumNet {
   }
   sendHost(e: HostEvent) {
     this.send('host', e);
+  }
+  /** voice-chat call setup (offers, answers, network candidates, mic on/off) */
+  sendRtc(s: RtcSignal) {
+    this.send('rtc', s);
   }
   sendKick(id: string) {
     this.send('kick', { id });

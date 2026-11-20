@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, CircleHelp, DoorOpen, Film, Images, Map as MapIcon, Shirt, Users, Wifi, WifiOff } from 'lucide-react';
+import { ArrowRight, CircleHelp, DoorOpen, Film, Images, Loader2, Map as MapIcon, Mic, MicOff, Shirt, Users, Wifi, WifiOff } from 'lucide-react';
+import { useVoice } from '../net/VoiceChat';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../store';
 import { teleportTo } from '../player/LocalPlayer';
@@ -92,6 +93,8 @@ export function HUD({ actions, onTouchAction }: { actions: TourActions; onTouchA
   const room = useGame((s) => s.room);
   const setOverlay = useGame((s) => s.setOverlay);
   const mouseLook = useGame((s) => s.mouseLook);
+  const micOn = useVoice((s) => s.micOn);
+  const micBusy = useVoice((s) => s.busy);
 
   return (
     <div className="pointer-events-none absolute inset-0 select-none">
@@ -110,6 +113,16 @@ export function HUD({ actions, onTouchAction }: { actions: TourActions; onTouchA
               <Film className="h-4 w-4 text-blush" /> Cinema
             </button>
           )}
+          <button
+            onClick={() => onTouchAction('mic')}
+            className={`flex items-center gap-1.5 rounded-full px-3 py-2 text-sm ${micOn ? 'bg-emerald-500/90 text-white' : 'glass-strong hover:bg-white/10'}`}
+            aria-label={micOn ? 'Turn microphone off' : 'Turn microphone on'}
+            title={micOn ? 'Mic on — others can hear you (M)' : 'Mic off (M)'}
+          >
+            {micBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : micOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4 text-blush" />}
+            <span className="hidden sm:inline">{micOn ? 'Mic on' : 'Mic off'}</span>
+            <span className="kbd hidden [@media(hover:hover)]:inline">M</span>
+          </button>
           <GoTo />
           <button onClick={() => onTouchAction('P')} className="flex items-center gap-1.5 rounded-full glass-strong px-3 py-2 text-sm hover:bg-white/10" aria-label="Photos full screen">
             <Images className="h-4 w-4 text-blush" /> <span className="hidden sm:inline">Photos</span>

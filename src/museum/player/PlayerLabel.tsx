@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { WorldHtml } from '../../components/WorldHtml';
-import { Crown } from 'lucide-react';
+import { Crown, Mic } from 'lucide-react';
+import { useVoice } from '../net/VoiceChat';
 import { CHAT_TTL, useGame } from '../store';
 import { LABEL_HEIGHT } from '../../avatar/Avatar';
 
 /** Name tag + floating chat bubbles (each visible for 10 seconds). */
 export function PlayerLabel({ userId, name, self, host }: { userId: string; name: string; self?: boolean; host?: boolean }) {
   const all = useGame((s) => s.messages);
+  const talking = useVoice((s) => (self ? s.micOn : !!s.mics[userId]));
   const [now, setNow] = useState(() => Date.now());
   const mine = all.filter((m) => m.id === userId && now - m.ts < CHAT_TTL).slice(-3);
 
@@ -28,6 +30,7 @@ export function PlayerLabel({ userId, name, self, host }: { userId: string; name
         ))}
         <div className="nametag flex items-center gap-1">
           {host && <Crown className="h-3 w-3 text-[#d9b26f]" />}
+          {talking && <Mic className="h-3 w-3 text-emerald-300" />}
           {name}
           {self && <span className="opacity-60">(you)</span>}
         </div>
