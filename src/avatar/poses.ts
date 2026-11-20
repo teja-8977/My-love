@@ -44,6 +44,9 @@ export interface Pose {
   rHipX: number;
   rHipZ: number;
   rKnee: number;
+  /** extra ankle bend on top of keeping the foot level (+ = toes down) */
+  lAnk: number;
+  rAnk: number;
   spin: number; // extra body rotation around Y (twirl)
 }
 
@@ -55,6 +58,7 @@ export const ZERO_POSE: Pose = {
   rShX: 0, rShZ: -0.08, rShY: 0, rEl: -0.12,
   lHipX: 0, lHipZ: 0, lKnee: 0,
   rHipX: 0, rHipZ: 0, rKnee: 0,
+  lAnk: 0, rAnk: 0,
   spin: 0,
 };
 
@@ -116,6 +120,9 @@ export function targetPose(out: Pose, anim: AnimName, t: number, opts: { dance?:
       // the big head bobs a little behind the body
       out.headX = (run ? -0.14 : -0.04) + bounce * 0.05;
       out.headZ = s(p) * 0.06;
+      // heel strike → toe push-off
+      out.lAnk = s(p + 0.9) * (run ? 0.35 : 0.25);
+      out.rAnk = -s(p + 0.9) * (run ? 0.35 : 0.25);
       break;
     }
     case 'jump': {
@@ -131,6 +138,8 @@ export function targetPose(out: Pose, anim: AnimName, t: number, opts: { dance?:
       out.rEl = -0.4;
       out.spineX = 0.06;
       out.headX = -0.12;
+      out.lAnk = 0.45;
+      out.rAnk = 0.35;
       break;
     }
     case 'sit': {

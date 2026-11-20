@@ -10,9 +10,9 @@ import { dampPose, makePose, targetPose, type AnimName, type Pose } from './pose
  * primitives and animated procedurally. No model files, so it loads instantly everywhere.
  */
 
-export const HIP_HEIGHT = 0.6;
+export const HIP_HEIGHT = 0.665;
 /** height of the name tag above the floor (head top ≈ 1.5 m at height 1.0) */
-export const LABEL_HEIGHT = 1.68;
+export const LABEL_HEIGHT = 1.72;
 const TAU = Math.PI * 2;
 
 export interface AnimState {
@@ -44,6 +44,31 @@ function cached<T extends THREE.BufferGeometry>(key: string, make: () => T): T {
 }
 const capsule = (r: number, len: number) => cached(`cap${r.toFixed(4)}:${len}`, () => new THREE.CapsuleGeometry(r, Math.max(0.001, len - 2 * r), 6, 14));
 const sphere = (r: number, w = 20, h = 14) => cached(`sph${r.toFixed(4)}:${w}:${h}`, () => new THREE.SphereGeometry(r, w, h));
+/**
+ * A natural limb: rounded at both ends, tapering from rTop to rBot with a soft muscle bulge
+ * (thigh, calf, upper arm, forearm). Hangs down from its joint at y = 0.
+ */
+function limb(rTop: number, rBot: number, len: number, bulge = 0.12, at = 0.3) {
+  return cached(`limb${rTop.toFixed(4)}:${rBot.toFixed(4)}:${len}:${bulge}:${at}`, () => {
+    const pts: THREE.Vector2[] = [];
+    const cap = 5;
+    for (let i = 0; i <= cap; i++) {
+      const a = (i / cap) * (Math.PI / 2);
+      pts.push(new THREE.Vector2(Math.max(0.0001, Math.sin(a) * rTop), -rTop * (1 - Math.cos(a)) + rTop * 0.6));
+    }
+    const n = 10;
+    for (let i = 1; i < n; i++) {
+      const t = i / n;
+      const r = rTop + (rBot - rTop) * t + Math.sin(Math.min(1, t / (at * 2)) * Math.PI) * bulge * rTop;
+      pts.push(new THREE.Vector2(r, -len * t));
+    }
+    for (let i = 0; i <= cap; i++) {
+      const a = (i / cap) * (Math.PI / 2);
+      pts.push(new THREE.Vector2(Math.max(0.0001, Math.cos(a) * rBot), -len - Math.sin(a) * rBot * 0.8));
+    }
+    return new THREE.LatheGeometry(pts.reverse(), 20);
+  });
+}
 const arc = (r: number, tube: number, a: number) => cached(`arc${r}:${tube}:${a}`, () => new THREE.TorusGeometry(r, tube, 6, 18, a));
 
 function lathe(points: [number, number][], from = -Infinity, to = Infinity, phiStart = 0, phiLength = TAU, grow = 1) {
@@ -83,11 +108,11 @@ function bodyOf(cfg: AvatarConfig) {
   const hips = b === 'slim' ? 0.93 : b === 'athletic' ? 0.98 : b === 'curvy' ? 1.12 : 1;
   const pts: [number, number][] = f
     ? [
-        [0.0, -0.085], [0.1 * hips, -0.08], [0.128 * hips, -0.035], [0.132 * hips, 0.03], [0.124 * waist, 0.11], [0.12 * waist, 0.17],
+        [0.0, -0.085], [0.09 * hips, -0.08], [0.116 * hips, -0.035], [0.124 * hips, 0.03], [0.122 * waist, 0.11], [0.12 * waist, 0.17],
         [0.128 * chest, 0.235], [0.126 * chest, 0.29], [0.108, 0.335], [0.07, 0.365], [0.045, 0.378], [0.0, 0.38],
       ]
     : [
-        [0.0, -0.085], [0.105 * hips, -0.08], [0.132 * hips, -0.035], [0.138 * hips, 0.03], [0.14 * waist, 0.11], [0.145 * waist, 0.17],
+        [0.0, -0.085], [0.095 * hips, -0.08], [0.12 * hips, -0.035], [0.13 * hips, 0.03], [0.138 * waist, 0.11], [0.145 * waist, 0.17],
         [0.153 * chest, 0.235], [0.15 * chest, 0.29], [0.124 * chest, 0.335], [0.076, 0.365], [0.048, 0.378], [0.0, 0.38],
       ];
   const chestR = (f ? 0.128 : 0.153) * chest;
@@ -110,7 +135,7 @@ const FACE: Record<AvatarConfig['faceShape'], { c: [number, number, number]; j: 
 
 const R = 0.2; // head radius (before HEAD_SCALE)
 /** chibi proportions: the whole head (with hair and hats) is drawn bigger than the body */
-const HEAD_SCALE = 1.2;
+const HEAD_SCALE = 1.1;
 const JAW_C = 0.012; // jaw ellipsoid z offset
 
 /** Surface depth of the face at (x, y): the max of the cranium and cheek ellipsoids. */
@@ -173,7 +198,9 @@ function mergeStatic(root: THREE.Object3D) {
     hidden.push(m);
   });
   const made = (gloss: boolean) => {
-    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: gloss ? 0.18 : 0.62, side: THREE.DoubleSide });
+    const mat = gloss
+      ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.18, side: THREE.DoubleSide })
+      : new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.66, sheen: 0.6, sheenRoughness: 0.7, sheenColor: new THREE.Color('#fff4ee'), side: THREE.DoubleSide });
     // keep the soft "lit from inside" look of skin and hair: a little of the base colour as emission
     mat.onBeforeCompile = (sh) => {
       sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += vColor.rgb * 0.09;');
@@ -261,6 +288,8 @@ function ChibiAvatar({ config: cfg, state, anim = 'idle', dance = 0, shadow = tr
   const rHip = useRef<THREE.Group>(null!);
   const lKnee = useRef<THREE.Group>(null!);
   const rKnee = useRef<THREE.Group>(null!);
+  const lAnk = useRef<THREE.Group>(null!);
+  const rAnk = useRef<THREE.Group>(null!);
   const eyesRef = useRef<THREE.Group>(null!);
 
   const pose = useRef<Pose>(makePose());
@@ -298,6 +327,9 @@ function ChibiAvatar({ config: cfg, state, anim = 'idle', dance = 0, shadow = tr
     rHip.current.rotation.set(p.rHipX, 0, p.rHipZ);
     lKnee.current.rotation.x = p.lKnee;
     rKnee.current.rotation.x = p.rKnee;
+    // feet stay level with the floor (heel-to-toe roll comes from the pose's extra ankle angle)
+    lAnk.current.rotation.x = -(p.lHipX + p.lKnee) * 0.85 + p.lAnk;
+    rAnk.current.rotation.x = -(p.rHipX + p.rKnee) * 0.85 + p.rAnk;
 
     // blinking
     blinkT.current -= dt;
@@ -336,35 +368,40 @@ function ChibiAvatar({ config: cfg, state, anim = 'idle', dance = 0, shadow = tr
   const eyeY = -0.03;
   const eyeSY = cfg.eyes === 'round' ? 1.14 : cfg.eyes === 'almond' ? 0.92 : 0.84;
 
-  const legs = (side: 1 | -1, hipRef: typeof lHip, kneeRef: typeof lKnee) => (
+  // trouser legs stay straight; bare legs narrow to a slim ankle
+  const pants = shinMat !== mats.skin;
+  const legs = (side: 1 | -1, hipRef: typeof lHip, kneeRef: typeof lKnee, ankRef: typeof lAnk) => (
     <group ref={hipRef} userData={BONE} position={[side * legX, -0.03, 0]}>
-      <mesh geometry={capsule(thighR, 0.3)} material={thighMat} position={[0, -0.13, 0]} />
-      {cfg.bottom === 'shorts' && !skirtLike && <mesh geometry={capsule(thighR * 1.14, 0.19)} material={mats.bottom} position={[0, -0.07, 0]} />}
-      <group ref={kneeRef} userData={BONE} position={[0, -0.27, 0]}>
-        <mesh geometry={capsule(shinR, 0.27)} material={shinMat} position={[0, -0.12, 0]} />
+      <mesh geometry={limb(thighR * 1.12, shinR * 1.08, 0.3, 0.1, 0.25)} material={thighMat} />
+      {cfg.bottom === 'shorts' && !skirtLike && <mesh geometry={limb(thighR * 1.24, thighR * 1.18, 0.16, 0.02)} material={mats.bottom} />}
+      <group ref={kneeRef} userData={BONE} position={[0, -0.3, 0]}>
+        {/* shin with a calf bulge at the back */}
+        <mesh geometry={limb(shinR * 1.06, pants ? shinR * 1.02 : shinR * 0.68, 0.29, pants ? 0.04 : 0.16, 0.22)} material={shinMat} position={[0, 0, pants ? 0 : -0.004]} />
         {cfg.bottom === 'jeans' && !skirtLike && (
-          <mesh geometry={cached(`cuff${shinR}`, () => new THREE.CylinderGeometry(shinR * 1.28, shinR * 1.32, 0.05, 16))} material={mats.cuff} position={[0, -0.215, 0]} />
+          <mesh geometry={cached(`cuff${shinR}`, () => new THREE.CylinderGeometry(shinR * 1.24, shinR * 1.3, 0.05, 16))} material={mats.cuff} position={[0, -0.255, 0]} />
         )}
-        <Shoe style={cfg.shoes} mats={mats} />
+        <group ref={ankRef} userData={BONE} position={[0, -0.3, 0]}>
+          <Shoe style={cfg.shoes} mats={mats} />
+        </group>
       </group>
     </group>
   );
 
   const arm = (side: 1 | -1, shRef: typeof lSh, elRef: typeof lEl) => (
     <group ref={shRef} userData={BONE} position={[side * body.shoulderX, 0.3, 0]}>
-      <mesh geometry={sphere(uArmR * 1.06, 14, 10)} material={sleeves === 'short' ? mats.top : armMat} />
-      <mesh geometry={capsule(uArmR, 0.2)} material={sleeves === 'short' ? mats.skin : armMat} position={[0, -0.085, 0]} />
-      {sleeves === 'short' && <mesh geometry={capsule(uArmR * 1.32, 0.12)} material={mats.top} position={[0, -0.035, 0]} />}
-      {t === 'overshirt' && <mesh geometry={capsule(uArmR * 1.18, 0.1)} material={mats.top} position={[0, -0.14, 0]} />}
-      <group ref={elRef} userData={BONE} position={[0, -0.17, 0]}>
-        <mesh geometry={capsule(fArmR, 0.17)} material={sleeves === 'long' ? armMat : mats.skin} position={[0, -0.07, 0]} />
-        {sleeves === 'three' && <mesh geometry={capsule(fArmR * 1.25, 0.08)} material={mats.top} position={[0, -0.01, 0]} />}
+      <mesh geometry={sphere(uArmR * 1.08, 14, 10)} material={sleeves === 'short' ? mats.top : armMat} />
+      <mesh geometry={limb(uArmR * 1.02, fArmR * 1.02, 0.18, 0.1, 0.35)} material={sleeves === 'short' ? mats.skin : armMat} />
+      {sleeves === 'short' && <mesh geometry={limb(uArmR * 1.36, uArmR * 1.32, 0.09, 0.02)} material={mats.top} />}
+      {t === 'overshirt' && <mesh geometry={limb(uArmR * 1.22, uArmR * 1.2, 0.12, 0.02)} material={mats.top} position={[0, -0.08, 0]} />}
+      <group ref={elRef} userData={BONE} position={[0, -0.18, 0]}>
+        <mesh geometry={limb(fArmR * 1.04, fArmR * 0.72, 0.16, 0.12, 0.3)} material={sleeves === 'long' ? armMat : mats.skin} />
+        {sleeves === 'three' && <mesh geometry={limb(fArmR * 1.3, fArmR * 1.2, 0.06, 0.02)} material={mats.top} />}
         {sleeves === 'long' && t !== 'sweater' && t !== 'hoodie' && (
-          <mesh geometry={cached(`cufft${fArmR}`, () => new THREE.CylinderGeometry(fArmR * 1.2, fArmR * 1.2, 0.025, 14))} material={mats.accent} position={[0, -0.14, 0]} />
+          <mesh geometry={cached(`cufft${fArmR}`, () => new THREE.CylinderGeometry(fArmR * 1.05, fArmR * 1.05, 0.025, 14))} material={mats.accent} position={[0, -0.14, 0]} />
         )}
-        <mesh geometry={sphere(0.042, 14, 10)} material={mats.skin} position={[0, -0.175, 0.004]} scale={[0.85, 1.0, 0.75]} />
+        <Hand side={side} mat={mats.skin} />
         {side === 1 && cfg.accessories.includes('watch') && (
-          <mesh geometry={cached('watch', () => new THREE.TorusGeometry(fArmR * 1.05, 0.007, 6, 16))} material={mats.gold} position={[0, -0.13, 0]} rotation={[Math.PI / 2, 0, 0]} />
+          <mesh geometry={cached('watch', () => new THREE.TorusGeometry(fArmR * 0.8, 0.007, 6, 16))} material={mats.gold} position={[0, -0.135, 0]} rotation={[Math.PI / 2, 0, 0]} />
         )}
       </group>
     </group>
@@ -394,8 +431,8 @@ function ChibiAvatar({ config: cfg, state, anim = 'idle', dance = 0, shadow = tr
             {skirtLike && <mesh geometry={skirtGeo} material={isDress ? mats.top : mats.bottom} scale={[1, 1, 0.88]} />}
             {kurta && <mesh geometry={kurtaGeo} material={mats.top} scale={[1, 1, 0.86]} />}
 
-            {legs(1, lHip, lKnee)}
-            {legs(-1, rHip, rKnee)}
+            {legs(1, lHip, lKnee, lAnk)}
+            {legs(-1, rHip, rKnee, rAnk)}
 
             <group ref={spine} userData={BONE} position={[0, 0.02, 0]}>
               {/* upper body */}
@@ -468,6 +505,9 @@ function ChibiAvatar({ config: cfg, state, anim = 'idle', dance = 0, shadow = tr
                         <mesh geometry={arc(0.043, f ? 0.0065 : 0.0045, Math.PI * 0.82)} material={mats.lash} position={[0, 0, 0.006]} rotation={[0, 0, Math.PI * 0.09]} scale={[1, eyeSY * 0.98, 1]} />
                         {f && (
                           <mesh geometry={cached('flick', () => new THREE.ConeGeometry(0.006, 0.022, 6))} material={mats.lash} position={[s * 0.043, 0.024 * eyeSY, 0.008]} rotation={[0, 0, s * -0.9]} />
+                        )}
+                        {cfg.eyes !== 'gentle' && (
+                          <mesh geometry={cached('lidS', () => new THREE.SphereGeometry(0.046, 16, 6, 0, TAU, 0, Math.PI * 0.2))} material={mats.skin} scale={[0.98, eyeSY, 0.56]} position={[0, 0.003, 0.001]} />
                         )}
                         {cfg.eyes === 'gentle' && (
                           <mesh geometry={cached('lid', () => new THREE.SphereGeometry(0.046, 16, 8, 0, TAU, 0, Math.PI * 0.42))} material={mats.skin} scale={[0.97, eyeSY, 0.52]} position={[0, 0.002, 0.001]} />
@@ -569,11 +609,24 @@ function ChibiAvatar({ config: cfg, state, anim = 'idle', dance = 0, shadow = tr
   );
 }
 
+// ---------- hands: palm, four fingers and a thumb (palm faces the body) ----------
+function Hand({ side, mat }: { side: 1 | -1; mat: THREE.Material }) {
+  return (
+    <group position={[0, -0.165, 0]} rotation={[0, 0, side * 0.08]}>
+      <mesh geometry={sphere(0.032, 14, 10)} material={mat} position={[0, -0.026, 0]} scale={[0.5, 1.05, 0.95]} />
+      {[-0.021, -0.007, 0.007, 0.021].map((z, i) => (
+        <mesh key={z} geometry={capsule(0.0082, i === 0 || i === 3 ? 0.04 : 0.047)} material={mat} position={[side * -0.003, -0.068 + (i === 0 || i === 3 ? 0.004 : 0), z * 1.05]} rotation={[0, 0, side * -0.12]} />
+      ))}
+      <mesh geometry={capsule(0.0095, 0.042)} material={mat} position={[side * -0.006, -0.028, 0.03]} rotation={[0.75, 0, side * -0.2]} />
+    </group>
+  );
+}
+
 // ---------- shoes (origin at the ankle, sole at y ≈ -0.035) ----------
 function Shoe({ style, mats }: { style: AvatarConfig['shoes']; mats: Mats }) {
   if (style === 'chappals') {
     return (
-      <group position={[0, -0.27, 0]}>
+      <group>
         <mesh geometry={sphere(0.052, 16, 12)} material={mats.skin} position={[0, -0.005, 0.03]} scale={[0.95, 0.55, 1.6]} />
         <mesh geometry={cached('chsole', () => new THREE.CylinderGeometry(0.06, 0.06, 0.014, 18))} material={mats.shoe} position={[0, -0.031, 0.03]} scale={[1, 1, 1.85]} />
         <mesh geometry={cached('chstrap', () => new THREE.TorusGeometry(0.048, 0.009, 6, 16, Math.PI))} material={mats.shoe} position={[0, -0.02, 0.06]} rotation={[0, 0, 0]} scale={[1, 0.7, 1]} />
@@ -583,7 +636,7 @@ function Shoe({ style, mats }: { style: AvatarConfig['shoes']; mats: Mats }) {
   const heel = style === 'heels';
   const sporty = style === 'canvas' || style === 'sneakers';
   return (
-    <group position={[0, -0.27, 0]}>
+    <group>
       <mesh geometry={sphere(0.062, 18, 12)} material={mats.shoe} position={[0, heel ? 0.004 : 0, 0.03]} scale={heel ? [0.88, 0.55, 1.5] : [1.0, 0.62, 1.62]} rotation={[heel ? 0.15 : 0, 0, 0]} />
       {!heel && (
         <mesh geometry={sphere(0.064, 18, 8)} material={mats.sole} position={[0, -0.026, 0.03]} scale={[1.04, 0.24, 1.66]} />
@@ -641,7 +694,7 @@ const CURLS = Array.from({ length: 44 }, (_, i) => {
 });
 
 /** straight bangs across the forehead */
-const BANGS = [-0.72, -0.48, -0.24, 0, 0.24, 0.48, 0.72];
+const BANGS = [-0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6];
 
 function Hair({ style, scale, mat }: { style: AvatarConfig['hair']; scale: [number, number, number]; mat: THREE.Material }) {
   if (style === 'bald') return null;
@@ -686,7 +739,7 @@ function Hair({ style, scale, mat }: { style: AvatarConfig['hair']; scale: [numb
 
       {/* girls' styles: straight bangs (bob, long + bangs, bun, ponytail, pigtails) */}
       {(style === 'bob' || style === 'straight' || style === 'bun' || style === 'ponytail' || style === 'pigtails') &&
-        BANGS.map((a, i) => <Lock key={a} a={a} e={1.0} len={0.115} w={0.055} th={0.028} twist={(i - 3) * 0.04} lift={0.22} mat={mat} />)}
+        BANGS.map((a, i) => <Lock key={a} a={a} e={1.0} len={0.115} w={0.055} th={0.028} twist={(i - 3) * 0.03} lift={0.08} mat={mat} />)}
       {(style === 'long' || style === 'wavy') && (
         <>
           <Lock a={0.3} e={1.05} len={0.11} w={0.085} th={0.028} twist={0.6} lift={-0.1} mat={mat} />
@@ -696,12 +749,6 @@ function Hair({ style, scale, mat }: { style: AvatarConfig['hair']; scale: [numb
       {style === 'bob' && (
         <>
           <mesh geometry={shell(0.36, 0.76, 0.95, Rh * 1.05)} material={mat} scale={[1.07, 1, 1.04]} />
-          {/* strands at the back so it reads as hair, not a helmet */}
-          <group scale={[1.13, 1.0, 1.12]}>
-            {[2.2, 2.6, 2.95, 3.33, 3.68, 4.08].map((a, i) => (
-              <Lock key={a} a={a} e={0.55} len={0.15} w={0.07} th={0.03} twist={(i - 2.5) * 0.05} lift={0.12} mat={mat} />
-            ))}
-          </group>
         </>
       )}
       {girlLong && (
